@@ -22,7 +22,6 @@ export interface NetworkProblem {
 export interface NetworkCheck {
   hostname: string
   networks: Array<{ name: string; adapter: string; category: string }>
-  firewalls: string[]
   problems: NetworkProblem[]
 }
 

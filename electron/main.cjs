@@ -253,6 +253,9 @@ function registerIpc() {
 
 // ---------------------------------------------------------------- lifecycle
 
+// Groups the window under its own taskbar button (with our icon) instead of "Electron".
+if (process.platform === 'win32') app.setAppUserModelId('com.peelguy857.utility')
+
 app.whenReady().then(async () => {
   settings = new Settings(path.join(app.getPath('userData'), 'settings.json'))
   registry = new Registry({ root: path.join(ROOT, 'utilities'), makeContext })

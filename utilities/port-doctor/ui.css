@@ -1,0 +1,378 @@
+.port-doctor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.port-doctor__muted {
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+.port-doctor__mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.port-doctor__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ------------------------------------------------------------ "is port N free?" */
+
+.port-doctor__check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+.port-doctor__checkform {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+}
+.port-doctor__checklabel {
+  font: 600 13.5px var(--font-display);
+  white-space: nowrap;
+}
+.port-doctor__checkinput {
+  width: 84px;
+}
+.port-doctor__checkinput input {
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.port-doctor__checkresult {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.port-doctor__checkresult .notice {
+  padding: 8px 12px;
+}
+
+/* ------------------------------------------------------------ toolbar + chips */
+
+.port-doctor .panel__actions {
+  align-items: center;
+  gap: 8px;
+}
+.port-doctor__toolbar {
+  padding: 12px 16px 0;
+}
+.port-doctor__filter .input__suffix {
+  display: grid;
+  place-items: center;
+  padding-right: 8px;
+}
+.port-doctor__clear {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+}
+.port-doctor__clear:hover {
+  color: var(--text);
+}
+.port-doctor__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 10px 16px 0;
+}
+.port-doctor__chipslabel {
+  margin-right: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.port-doctor__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--bg-elev);
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+.port-doctor__chip:hover {
+  background: var(--bg-elev-2);
+}
+.port-doctor__chip.is-on {
+  border-color: var(--tint);
+  background: var(--tint-soft);
+}
+.port-doctor__chipport {
+  font: 600 12px var(--font-mono);
+}
+.port-doctor__chipname {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.port-doctor__error {
+  padding: 12px 16px 0;
+}
+
+/* ------------------------------------------------------------ table */
+
+.port-doctor__table {
+  container: port-doctor-table / inline-size;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.port-doctor__head,
+.port-doctor__row {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1.1fr) 70px minmax(0, 1.5fr) 204px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 0 16px;
+}
+.port-doctor__head {
+  height: 32px;
+  padding-right: 26px; /* the body's scrollbar gutter */
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.port-doctor__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+.port-doctor__sort:hover,
+.port-doctor__sort.is-on {
+  color: var(--text-dim);
+}
+.port-doctor__actionshead {
+  text-align: right;
+}
+.port-doctor__body {
+  max-height: max(250px, calc(100vh - 470px));
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.port-doctor__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 180px;
+  color: var(--text-faint);
+}
+.port-doctor__emptyactions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+}
+.port-doctor__item {
+  border-bottom: 1px solid var(--line);
+}
+.port-doctor__item:last-child {
+  border-bottom: 0;
+}
+.port-doctor__item.is-open {
+  box-shadow: inset 3px 0 0 var(--tint);
+  background: var(--tint-glow);
+}
+.port-doctor__row {
+  min-height: 46px;
+  outline-offset: -2px;
+  transition: background 0.1s;
+}
+.port-doctor__row:hover {
+  background: color-mix(in oklab, var(--bg-elev) 60%, transparent);
+}
+.port-doctor__port {
+  font: 600 14px var(--font-mono);
+  user-select: text;
+}
+.port-doctor__addr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.port-doctor__addrtext {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 12px var(--font-mono);
+  color: var(--text-dim);
+  user-select: text;
+}
+.port-doctor__addr > span:last-child {
+  flex: none;
+  display: inline-flex;
+}
+.port-doctor__proto {
+  font: 11.5px var(--font-mono);
+  color: var(--text-faint);
+}
+.port-doctor__proc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.port-doctor__procname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  user-select: text;
+}
+.port-doctor__pid {
+  flex: none;
+  font: 12px var(--font-mono);
+  color: var(--text-faint);
+  user-select: text;
+}
+.port-doctor__proc .badge {
+  flex: none;
+}
+.port-doctor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.port-doctor__detailsbtn svg {
+  transition: transform 0.15s var(--ease);
+}
+.port-doctor__detailsbtn.is-open svg {
+  transform: rotate(180deg);
+}
+.port-doctor__narrow {
+  display: none;
+}
+
+/* ------------------------------------------------------------ confirm + details (under a row) */
+
+.port-doctor__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 10px 16px;
+  border-top: 1px solid color-mix(in oklab, var(--err) 30%, transparent);
+  background: color-mix(in oklab, var(--err) 9%, transparent);
+  font-size: 13px;
+}
+.port-doctor__confirmicon {
+  flex: none;
+  color: var(--err);
+}
+.port-doctor__confirmtext {
+  flex: 1 1 300px;
+  min-width: 0;
+  color: var(--text-dim);
+}
+.port-doctor__confirmtext strong {
+  color: var(--text);
+  font-weight: 600;
+}
+.port-doctor__confirmbtns {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.port-doctor__details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--line);
+}
+.port-doctor__details--loading {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+}
+.port-doctor__facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+.port-doctor__fact--full {
+  grid-column: 1 / -1;
+}
+.port-doctor__fact dt {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.port-doctor__fact dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.port-doctor__fact dd.port-doctor__mono {
+  max-height: 92px;
+  overflow-y: auto;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.port-doctor__detailactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: -8px;
+}
+
+/* ------------------------------------------------------------ narrow window */
+
+@container port-doctor-table (max-width: 780px) {
+  .port-doctor__head,
+  .port-doctor__row {
+    grid-template-columns: 58px minmax(0, 1fr) 40px minmax(0, 1.35fr) 150px;
+    column-gap: 10px;
+  }
+  .port-doctor__wide {
+    display: none;
+  }
+  .port-doctor__narrow {
+    display: inline;
+  }
+  .port-doctor__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

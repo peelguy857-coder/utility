@@ -1,0 +1,230 @@
+/* ------------------------------------------------------------ empty state */
+
+.dmg-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.dmg-steps > div {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+.dmg-steps span {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--tint-soft);
+  color: var(--tint);
+  font: 600 12px var(--font-mono);
+}
+.dmg-steps p {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.dmg-steps strong {
+  color: var(--text);
+  font-weight: 600;
+}
+@media (max-width: 1040px) {
+  .dmg-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------ source card */
+
+.dmg-source {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+.dmg-source__icon {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--tint-soft);
+  color: var(--tint);
+}
+.dmg-source__icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.dmg-source__icon:has(img) {
+  background: none;
+}
+.dmg-source__text {
+  flex: 1;
+  min-width: 0;
+}
+.dmg-source__name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font: 600 15.5px var(--font-display);
+}
+.dmg-source__path {
+  margin-top: 2px;
+  font: 12px var(--font-mono);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+.dmg-source__facts {
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* ------------------------------------------------------------ the Finder window stand-in */
+
+.dmg-designer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(70% 90% at 50% 0%, var(--tint-glow), transparent 70%),
+    var(--bg-inset);
+}
+.dmg-designer__hint {
+  font-size: 12px;
+  color: var(--text-faint);
+  text-align: center;
+}
+.dmg-window {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow:
+    0 22px 60px rgb(0 0 0 / 0.45),
+    0 0 0 1px rgb(0 0 0 / 0.35);
+}
+.dmg-window__inner {
+  transform-origin: top left;
+}
+.dmg-window__bar {
+  position: relative;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(#ecebea, #dddcdb);
+  border-bottom: 1px solid #c4c3c2;
+}
+.dmg-window__lights {
+  position: absolute;
+  left: 10px;
+  display: flex;
+  gap: 8px;
+}
+.dmg-window__lights i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff5f57;
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.2);
+}
+.dmg-window__lights i:nth-child(2) {
+  background: #febc2e;
+}
+.dmg-window__lights i:nth-child(3) {
+  background: #28c840;
+}
+.dmg-window__title {
+  font: 600 13px -apple-system, 'Segoe UI', sans-serif;
+  color: #3c3c3c;
+}
+.dmg-window__content {
+  position: relative;
+  overflow: hidden;
+  background-color: #ffffff;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.dmg-item {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: grab;
+  touch-action: none;
+  border-radius: 8px;
+  outline-offset: 4px;
+}
+.dmg-item.is-dragging {
+  cursor: grabbing;
+}
+.dmg-item__icon {
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  transition: background 0.12s;
+  filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.25));
+}
+.dmg-item:hover .dmg-item__icon,
+.dmg-item.is-dragging .dmg-item__icon {
+  background: rgb(0 0 0 / 0.07);
+}
+.dmg-item__icon img,
+.dmg-item__icon svg {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.dmg-item__label {
+  max-width: 160%;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: -apple-system, 'Segoe UI', sans-serif;
+  line-height: 1.25;
+  color: #1d1d1f;
+  text-align: center;
+  text-shadow:
+    0 0 3px #fff,
+    0 0 3px #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------ build bar */
+
+.dmg-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dmg-result > svg {
+  flex: none;
+  color: var(--ok);
+}
+.dmg-result__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dmg-result__text span {
+  font-size: 12.5px;
+  color: var(--text-dim);
+}

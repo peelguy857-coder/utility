@@ -4,18 +4,18 @@ One desktop app, many small tools. Every utility is a folder under [`utilities/`
 folder and it appears in the sidebar, the home grid and the `Ctrl K` palette. Windows-first
 (Electron + React + TypeScript), no accounts, nothing leaves the PC unless a tool says so.
 
-| | Utility | What it does |
-|---|---|---|
-| Build & ship | **DMG Maker** | Turns a Mac `.app` (folder or `.zip`) into a drag-to-install `.dmg` — on Windows, no Mac needed. Background picture, icon layout, volume icon. |
-| | **Icon Forge** | One picture → `.ico`, `.icns`, PNG set, favicons, Electron and Tauri icon folders. |
-| Phone | **Phone Mirror** | Shows the iPhone's screen in a window. The PC appears under *Screen Mirroring* in Control Center (AirPlay receiver written in JS). |
-| | **Phone Drop** | Files, photos and text between PC and phone over Wi-Fi: scan a QR code, done. |
-| | **QR Maker** | Links, text and Wi-Fi logins as PNG/SVG QR codes. |
-| Images & colour | **Image Lab** | Resize, convert, squeeze — presets for YouTube, Steam and Discord. |
-| | **Color Studio** | Screen eyedropper, conversions, palettes, contrast check. |
-| Developer | **Port Doctor** | What is listening on which port, and end the process that is hogging it. |
-| | **Text Tools** | JSON, Base64, URLs, UUIDs, timestamps, case conversion. |
-| | **File Hash** | Checksums for any file and a one-paste download check. |
+| | Utility | What it does | Status |
+|---|---|---|---|
+| Build & ship | **DMG Maker** | Turns a Mac `.app` (folder or `.zip`) into a drag-to-install `.dmg` — on Windows, no Mac needed. Cover picture, icon layout, disk icon. | Engine passes its self-tests; a CI job checks the images on real Macs |
+| | **Icon Forge** | One picture → `.ico`, `.icns`, PNG set, favicons, Electron and Tauri icon folders. | Working |
+| Phone | **Phone Drop** | Files, photos and text between PC and phone over Wi-Fi: scan a QR code, done. | Working |
+| | **QR Maker** | Links, text and Wi-Fi logins as PNG/SVG QR codes. | Working |
+| | **Phone Mirror** | iPhone screen in a window via AirPlay (receiver written in JS). | In progress, not in the repo yet |
+| Images & colour | **Image Lab** | Resize, convert, squeeze — presets for YouTube, Steam and Discord. | Built, needs a polish pass |
+| Developer | **Port Doctor** | What is listening on which port, and end the process that is hogging it. | Working |
+| | **File Hash** | Checksums for any file and a one-paste download check. | Engine done, screen in progress |
+
+Planned next: Color Studio (eyedropper, palettes, contrast) and Text Tools (JSON, Base64, UUIDs, timestamps).
 
 ## Run it
 

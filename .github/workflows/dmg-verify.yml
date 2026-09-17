@@ -1,0 +1,62 @@
+name: DMG Maker on a real Mac
+
+# DMG Maker writes Apple disk images on Windows, where nothing can mount them. This builds the test
+# image with the same code and lets macOS judge it: checksum verify, fsck, mount, compare every file,
+# and ask Finder what window layout it sees. Results are attached to the "ci-dmg" pre-release so they
+# can be read without signing in.
+on:
+  push:
+    paths:
+      - 'utilities/dmg-maker/lib/**'
+      - 'utilities/dmg-maker/test/**'
+      - 'tools/lib/**'
+      - '.github/workflows/dmg-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dmg-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Self-test (same suite as on Windows)
+        run: node utilities/dmg-maker/test/selftest.cjs
+
+      - name: Build the test image
+        run: node utilities/dmg-maker/test/make-ci-image.cjs ci-out
+
+      - name: Let macOS judge it
+        id: judge
+        run: bash utilities/dmg-maker/test/macos-verify.sh ci-out/ci-demo.dmg ci-out/ci-demo.manifest.json "ci-out/report-${{ matrix.os }}.txt" "ci-out/finder-${{ matrix.os }}.png"
+        continue-on-error: true
+
+      - name: Publish the report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "commit ${{ github.sha }} on ${{ matrix.os }}: ${{ steps.judge.outcome }}" > "ci-out/status-${{ matrix.os }}.txt"
+          gh release view ci-dmg >/dev/null 2>&1 || gh release create ci-dmg --prerelease --title "DMG Maker CI results" --notes "Latest macOS verification output of the DMG writer. Overwritten on every run."
+          files=("ci-out/report-${{ matrix.os }}.txt" "ci-out/status-${{ matrix.os }}.txt")
+          [ -s "ci-out/finder-${{ matrix.os }}.png" ] && files+=("ci-out/finder-${{ matrix.os }}.png")
+          [ "${{ matrix.os }}" = "macos-15" ] && files+=("ci-out/ci-demo.dmg")
+          gh release upload ci-dmg "${files[@]}" --clobber
+
+      - name: Fail the job if macOS rejected the image
+        if: steps.judge.outcome != 'success'
+        run: exit 1
