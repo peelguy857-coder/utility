@@ -53,7 +53,7 @@ class UdifWriter {
     this.compression = o.compression || 'zlib';
     this.level = o.level === undefined ? 6 : o.level;
     this.concurrency = Math.max(1, o.concurrency || 4);
-    this.partitionName = o.partitionName || 'whole disk (Apple_HFS : 0)';
+    this.partitionName = o.partitionName || 'whole disk (Apple_HFSX : 0)'; // the volume is always HFSX
     this.current = Buffer.allocUnsafe(CHUNK_BYTES);
     this.fill = 0;
     this.pending = []; // promises, in disk order
@@ -142,6 +142,13 @@ class UdifWriter {
           ID: '0',
           Name: this.partitionName,
         }],
+        // hdiutil always writes this resource (1032 zero bytes) next to the block tables
+        plst: [{
+          Attributes: '0x0050',
+          Data: Buffer.alloc(1032),
+          ID: '0',
+          Name: '',
+        }],
       },
     }), 'utf8');
     await writeAll(this.handle, xml, dataForkLength);
@@ -157,18 +164,17 @@ class UdifWriter {
     // 16: running data fork offset, 24: data fork offset (both 0)
     koly.writeBigUInt64BE(BigInt(dataForkLength), 32);
     // 40/48: resource fork offset/length (unused; the plist replaces it)
-    koly.writeUInt32BE(1, 56); // segment number
-    koly.writeUInt32BE(1, 60); // segment count
-    crypto.randomBytes(16).copy(koly, 64); // segment id
-    koly.writeUInt32BE(CHECKSUM_CRC32, 80);
-    koly.writeUInt32BE(32, 84); // checksum size in bits
-    koly.writeUInt32BE(this.dataCrc, 88);
+    // Everything below mirrors, field for field, what hdiutil on macOS 15/26 writes for
+    // `-layout NONE -format UDZO` (compared in CI). An earlier version followed older write-ups
+    // (segment 1 of 1, random segment id, data-fork CRC, image variant 1) and macOS refused it with
+    // "unable to recognize as a disk image" (CUDIFDiskImage::setBackingStore -192).
+    // 56/60/64: segment number, count and id stay zero; 80..: no data-fork checksum.
     koly.writeBigUInt64BE(BigInt(dataForkLength), 216); // XML offset
     koly.writeBigUInt64BE(BigInt(xml.length), 224);
     koly.writeUInt32BE(CHECKSUM_CRC32, 352);
     koly.writeUInt32BE(32, 356);
     koly.writeUInt32BE(crc32(master), 360); // master checksum
-    koly.writeUInt32BE(1, 488); // image variant
+    koly.writeUInt32BE(2, 488); // image variant: 2 = one bare volume (1 would promise a partition map)
     koly.writeBigUInt64BE(BigInt(sectorCount), 492);
     await writeAll(this.handle, koly, dataForkLength + xml.length);
 
@@ -189,7 +195,7 @@ class UdifWriter {
     b.writeBigUInt64BE(BigInt(sectorCount), 16);
     b.writeBigUInt64BE(0n, 24); // data offset
     b.writeUInt32BE(CHUNK_SECTORS + 8, 32); // buffers needed (what hdiutil writes for 1 MiB chunks)
-    b.writeUInt32BE(0, 36); // block descriptor / partition number
+    b.writeUInt32BE(0xfffffffe, 36); // block descriptor: -2 marks "whole disk" (partitions count up from 0)
     b.writeUInt32BE(CHECKSUM_CRC32, 64);
     b.writeUInt32BE(32, 68);
     b.writeUInt32BE(this.diskCrc, 72);

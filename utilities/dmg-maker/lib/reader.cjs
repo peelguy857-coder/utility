@@ -167,12 +167,17 @@ class DmgImage {
     const checks = [];
     const hex = (v) => '0x' + (v >>> 0).toString(16).padStart(8, '0');
 
-    let crc = 0;
-    const step = 4 << 20;
-    for (let pos = 0; pos < this.koly.dataForkLength; pos += step) {
-      crc = crc32(await this._readFile(this.koly.dataForkOffset + pos, Math.min(step, this.koly.dataForkLength - pos)), crc);
+    // Current hdiutil writes no data-fork checksum (type 0); older images carry a CRC-32 (type 2).
+    if (this.koly.dataChecksumType === 0) {
+      checks.push({ name: 'koly has no data-fork checksum (as current hdiutil writes it)', ok: this.koly.dataChecksum === 0, detail: 'stored ' + hex(this.koly.dataChecksum) });
+    } else {
+      let crc = 0;
+      const step = 4 << 20;
+      for (let pos = 0; pos < this.koly.dataForkLength; pos += step) {
+        crc = crc32(await this._readFile(this.koly.dataForkOffset + pos, Math.min(step, this.koly.dataForkLength - pos)), crc);
+      }
+      checks.push({ name: 'koly data-fork CRC32', ok: crc === this.koly.dataChecksum, detail: 'stored ' + hex(this.koly.dataChecksum) + ', computed ' + hex(crc) });
     }
-    checks.push({ name: 'koly data-fork CRC32', ok: crc === this.koly.dataChecksum, detail: 'stored ' + hex(this.koly.dataChecksum) + ', computed ' + hex(crc) });
 
     const zeros = Buffer.alloc(1 << 20);
     const master = Buffer.alloc(4 * this.blocks.length);
@@ -214,8 +219,11 @@ class DmgImage {
     const checks = [];
     const add = (name, ok, detail) => checks.push({ name, ok: !!ok, detail: String(detail) });
     add('koly version/size', k.version === 4 && k.headerSize === 512, 'version ' + k.version + ', header ' + k.headerSize);
-    add('koly segment 1 of 1', k.segmentNumber === 1 && k.segmentCount === 1, k.segmentNumber + '/' + k.segmentCount);
-    add('koly checksum types are CRC32', k.dataChecksumType === 2 && k.dataChecksumBits === 32 && k.checksumType === 2 && k.checksumBits === 32, 'types ' + k.dataChecksumType + '/' + k.checksumType);
+    // hdiutil on macOS 15/26 leaves the segment fields at 0/0; older tools wrote 1/1. Both are single-segment.
+    add('koly is a single segment', (k.segmentNumber === 0 && k.segmentCount === 0) || (k.segmentNumber === 1 && k.segmentCount === 1), k.segmentNumber + '/' + k.segmentCount);
+    add('koly master checksum is CRC32', k.checksumType === 2 && k.checksumBits === 32 && (k.dataChecksumType === 0 || (k.dataChecksumType === 2 && k.dataChecksumBits === 32)), 'types ' + k.dataChecksumType + '/' + k.checksumType);
+    // variant 2 = one bare volume, which is what a single "whole disk" block table describes
+    add('koly image variant matches the layout', this.blocks.length !== 1 || k.imageVariant === 2, 'variant ' + k.imageVariant + ' with ' + this.blocks.length + ' block table(s)');
     add('plist follows the data fork', k.xmlOffset === k.dataForkOffset + k.dataForkLength, 'xml at ' + k.xmlOffset + ', data fork ends at ' + (k.dataForkOffset + k.dataForkLength));
     add('koly follows the plist', k.xmlOffset + k.xmlLength === this.fileSize - 512, 'xml ends at ' + (k.xmlOffset + k.xmlLength) + ', koly at ' + (this.fileSize - 512));
     const sectors = this.blocks.reduce((max, b) => Math.max(max, b.firstSector + b.sectorCount), 0);
