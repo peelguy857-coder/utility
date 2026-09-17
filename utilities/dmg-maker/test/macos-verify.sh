@@ -17,6 +17,31 @@ step "system"
 run sw_vers
 run uname -m
 
+HERE="$(cd "$(dirname "$0")" && pwd)"
+
+step "diagnostics: our container next to one Apple's own tool writes"
+REF=$(mktemp -d /tmp/dmgref.XXXXXX); mkdir -p "$REF/src/Sub"; echo hello > "$REF/src/hello.txt"; echo world > "$REF/src/Sub/world.txt"
+run hdiutil create -quiet -layout NONE -fs "Case-sensitive HFS+" -format UDZO -volname RefNone -srcfolder "$REF/src" "$REF/ref-none.dmg"
+log "--- Apple (layout NONE, UDZO):"; run node "$HERE/dump-udif.cjs" dump "$REF/ref-none.dmg"
+run hdiutil create -quiet -fs "HFS+" -format UDZO -volname RefDefault -srcfolder "$REF/src" "$REF/ref-default.dmg"
+log "--- Apple (default layout, UDZO):"; run node "$HERE/dump-udif.cjs" dump "$REF/ref-default.dmg"
+log "--- ours:"; run node "$HERE/dump-udif.cjs" dump "$DMG"
+log "--- why hdiutil rejects or accepts ours (debug probe, last lines):"
+hdiutil imageinfo -debug "$DMG" 2>&1 | tail -45 | tee -a "$REPORT"
+
+step "diagnostics: our filesystem without the container (raw disk image)"
+run node "$HERE/dump-udif.cjs" raw "$DMG" "$REF/ours-raw.img"
+RAW_OUT=$(hdiutil attach -nomount -readonly -imagekey diskimage-class=CRawDiskImage "$REF/ours-raw.img" 2>&1); log "$RAW_OUT"
+RAW_DEV=$(echo "$RAW_OUT" | awk '/^\/dev\//{print $1}' | tail -1)
+if [ -n "$RAW_DEV" ]; then
+  if run fsck_hfs -fn "$RAW_DEV"; then ok "raw volume: fsck_hfs is clean"; else bad "raw volume: fsck_hfs reported problems"; fi
+  RAW_MNT=$(mktemp -d /tmp/dmgraw.XXXXXX)
+  if run mount -t hfs -o ro,nobrowse "$RAW_DEV" "$RAW_MNT"; then ok "raw volume mounts"; run ls -la "$RAW_MNT"; run umount "$RAW_MNT"; else log "(mount -t hfs needs root on some systems; not counted)"; fi
+  run hdiutil detach "$RAW_DEV"
+else
+  bad "raw volume: macOS would not even attach it as a raw disk"
+fi
+
 step "hdiutil imageinfo"
 if run hdiutil imageinfo "$DMG"; then ok "imageinfo"; else bad "imageinfo"; fi
 
