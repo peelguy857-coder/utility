@@ -6,7 +6,7 @@ folder and it appears in the sidebar, the home grid and the `Ctrl K` palette. Wi
 
 | | Utility | What it does | Status |
 |---|---|---|---|
-| Build & ship | **DMG Maker** | Turns a Mac `.app` (folder or `.zip`) into a drag-to-install `.dmg` — on Windows, no Mac needed. Cover picture, icon layout, disk icon. | Engine passes its self-tests; a CI job checks the images on real Macs |
+| Build & ship | **DMG Maker** | Turns a Mac `.app` (folder or `.zip`) into a drag-to-install `.dmg` — on Windows, no Mac needed. Cover picture, icon layout, disk icon. | Engine done: images are verified on real Macs (macOS 15 + 26) by CI — `hdiutil verify`, `fsck_hfs`, mount, every file compared, Finder layout |
 | | **Icon Forge** | One picture → `.ico`, `.icns`, PNG set, favicons, Electron and Tauri icon folders. | Working |
 | Phone | **Phone Drop** | Files, photos and text between PC and phone over Wi-Fi: scan a QR code, done. | Working |
 | | **QR Maker** | Links, text and Wi-Fi logins as PNG/SVG QR codes. | Working |
