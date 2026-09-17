@@ -1,0 +1,94 @@
+/* Design tokens. Dark is the default look; [data-theme='light'] swaps the palette. */
+:root {
+  color-scheme: dark;
+
+  --bg: #0d0e12;
+  --bg-raised: #13151b;
+  --bg-elev: #1a1d25;
+  --bg-elev-2: #232733;
+  --bg-inset: #0a0b0e;
+  --line: #232732;
+  --line-strong: #333949;
+
+  --text: #eceef4;
+  --text-dim: #a3a9b8;
+  --text-faint: #6b7283;
+
+  --accent: #b9f24a;
+  --accent-hover: #c8f76a;
+  --accent-ink: #11140a;
+  --accent-text: #b9f24a;
+  --accent-soft: rgb(185 242 74 / 0.12);
+
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --err: #fb7185;
+  --info: #60a5fa;
+
+  /* per-utility tint: defaults here; .tinted (below) recomputes them from a local --hue */
+  --tint: oklch(0.8 0.13 130);
+  --tint-soft: oklch(0.8 0.13 130 / 0.13);
+  --tint-glow: oklch(0.8 0.13 130 / 0.07);
+
+  --shadow-pop: 0 18px 50px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset;
+
+  --radius-lg: 14px;
+  --radius: 10px;
+  --radius-sm: 7px;
+
+  --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Cascadia Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
+
+  --titlebar-h: 44px;
+  --sidebar-w: 236px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f4f4f1;
+  --bg-raised: #ffffff;
+  --bg-elev: #ecece8;
+  --bg-elev-2: #e2e2dd;
+  --bg-inset: #ebebe7;
+  --line: #e1e1db;
+  --line-strong: #cbcbc4;
+
+  --text: #16171b;
+  --text-dim: #565b67;
+  --text-faint: #8a8f9c;
+
+  --accent: #b4ee3f;
+  --accent-hover: #a6e22c;
+  --accent-ink: #172004;
+  --accent-text: #4a7a06;
+  --accent-soft: rgb(120 180 20 / 0.14);
+
+  --ok: #15803d;
+  --warn: #b45309;
+  --err: #be123c;
+  --info: #1d4ed8;
+
+  --tint: oklch(0.52 0.15 130);
+  --tint-soft: oklch(0.6 0.15 130 / 0.13);
+  --tint-glow: oklch(0.6 0.15 130 / 0.08);
+
+  --shadow-pop: 0 18px 50px rgb(20 20 30 / 0.18), 0 0 0 1px rgb(0 0 0 / 0.06);
+  --shadow-card: 0 1px 2px rgb(20 20 30 / 0.05);
+}
+
+/* A custom property that uses var() is resolved where it is declared, so the tint has to be
+   re-declared on the element that carries --hue (see hueStyle() in Shell.tsx). */
+.tinted {
+  --tint: oklch(0.8 0.13 var(--hue));
+  --tint-soft: oklch(0.8 0.13 var(--hue) / 0.13);
+  --tint-glow: oklch(0.8 0.13 var(--hue) / 0.07);
+}
+:root[data-theme='light'] .tinted {
+  --tint: oklch(0.52 0.15 var(--hue));
+  --tint-soft: oklch(0.6 0.15 var(--hue) / 0.13);
+  --tint-glow: oklch(0.6 0.15 var(--hue) / 0.08);
+}

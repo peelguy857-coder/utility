@@ -1,0 +1,115 @@
+.iconforge__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.iconforge__stage--checker {
+  background-color: var(--bg-inset);
+  background-image:
+    linear-gradient(45deg, var(--bg-elev) 25%, transparent 25%, transparent 75%, var(--bg-elev) 75%),
+    linear-gradient(45deg, var(--bg-elev) 25%, transparent 25%, transparent 75%, var(--bg-elev) 75%);
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    10px 10px;
+}
+.iconforge__stage--dark {
+  background: #111318;
+}
+.iconforge__stage--light {
+  background: #f2f2ee;
+}
+.iconforge__master {
+  width: min(280px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.iconforge__strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--line);
+}
+.iconforge__sample {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background-size: 12px 12px !important;
+  background-position:
+    0 0,
+    6px 6px !important;
+}
+.iconforge__sample canvas {
+  display: block;
+}
+.iconforge__sample figcaption {
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--bg-raised);
+  font: 10.5px var(--font-mono);
+  color: var(--text-faint);
+}
+.iconforge__backdrop {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+.iconforge__backdrop .segmented {
+  background: var(--bg-raised);
+}
+
+.iconforge__export {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.iconforge__export .field {
+  flex: 1;
+}
+
+.iconforge__bg {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.iconforge__bg input[type='color'] {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.iconforge__bg input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.iconforge__bg input::-webkit-color-swatch {
+  border: 0;
+  border-radius: 5px;
+}
+
+.iconforge__pack {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.iconforge__pack span:last-child {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.checkbox:has(.iconforge__pack) {
+  align-items: flex-start;
+}
+.checkbox:has(.iconforge__pack) .checkbox__box {
+  margin-top: 2px;
+}

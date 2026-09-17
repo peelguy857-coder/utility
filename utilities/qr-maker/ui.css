@@ -1,0 +1,56 @@
+.qr__stage {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  padding: 32px;
+  border-bottom: 1px solid var(--line);
+  background:
+    radial-gradient(60% 60% at 50% 40%, var(--tint-glow), transparent 70%),
+    var(--bg-inset);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.qr__canvas {
+  width: min(340px, 100%);
+  height: auto;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
+  image-rendering: pixelated;
+}
+.qr__placeholder {
+  max-width: 320px;
+  text-align: center;
+  color: var(--text-faint);
+}
+.qr__actions {
+  display: flex;
+  gap: 8px;
+  padding: 14px 16px;
+}
+.qr__count {
+  font: 12px var(--font-mono);
+  color: var(--text-faint);
+}
+.qr__color {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.qr__color input {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.qr__color input::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.qr__color input::-webkit-color-swatch {
+  border: 0;
+  border-radius: 5px;
+}

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.dist-*/
+release/
+.shots*/
+*.log
+.DS_Store
+Thumbs.db
+# local test output from the utilities' self-tests
+utilities/*/test/out/
