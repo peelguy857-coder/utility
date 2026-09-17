@@ -1,0 +1,115 @@
+.filehash__top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+.filehash__top .dropzone {
+  min-height: 0;
+  height: 100%;
+}
+@media (max-width: 1040px) {
+  .filehash__top {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filehash__verdict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+.filehash__verdict svg {
+  flex: none;
+}
+.filehash__verdict.is-match {
+  color: var(--ok);
+  font-weight: 600;
+}
+.filehash__verdict.is-mismatch,
+.filehash__verdict.is-problem {
+  color: var(--err);
+  font-weight: 600;
+}
+
+.filehash__card.is-match {
+  border-color: color-mix(in oklab, var(--ok) 55%, transparent);
+}
+.filehash__card.is-mismatch {
+  border-color: color-mix(in oklab, var(--err) 55%, transparent);
+}
+.filehash__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 10px 12px 14px;
+}
+.filehash__icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--tint-soft);
+  color: var(--tint);
+}
+.filehash__name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.filehash__name strong {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filehash__name span {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.filehash__body {
+  padding: 4px 16px 16px;
+}
+.filehash__error {
+  color: var(--err);
+  user-select: text;
+}
+.filehash__digests {
+  border-top: 1px solid var(--line);
+}
+.filehash__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 8px 5px 16px;
+}
+.filehash__row + .filehash__row {
+  border-top: 1px solid var(--line);
+}
+.filehash__row.is-hit {
+  background: color-mix(in oklab, var(--ok) 9%, transparent);
+}
+.filehash__algo {
+  width: 62px;
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.filehash__row code {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+  user-select: text;
+}

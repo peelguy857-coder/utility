@@ -79,17 +79,20 @@ async function main() {
     const entries = demoEntries()
     const app = writeFolder(path.join(work, 'folder-src'), entries)
     const info = await dmg.inspectSource(app)
-    check('folder: inspect', info.kind === 'app-folder' && !info.hasUnixModes && info.displayName === 'Demo App')
-    check('folder: warns about the framework symlinks Windows lost', info.warnings.some((w) => /zip/i.test(w) && /framework|symlink|link/i.test(w)), info.warnings.join(' | '))
+    const onWindows = process.platform === 'win32' // elsewhere folders carry real modes, so nothing is inferred
+    check('folder: inspect', info.kind === 'app-folder' && info.displayName === 'Demo App' && info.hasUnixModes === !onWindows, JSON.stringify({ kind: info.kind, hasUnixModes: info.hasUnixModes }))
+    check('folder: warns about the framework symlinks that are missing', info.warnings.some((w) => /zip/i.test(w) && /framework|symlink|link/i.test(w)), info.warnings.join(' | '))
     const out = path.join(work, 'folder.dmg')
     await dmg.buildDmg({ source: app, outPath: out, compression: 'none' })
     const onDisk = entries.filter((e) => e.type !== 'symlink')
     const { byPath } = await verifyImage('folder (uncompressed)', out, onDisk, { expectModes: false })
     const mode = (p) => (byPath.get(nfd(p))?.mode ?? 0) & 0o777
-    check(
-      'folder: executables are recognised (Mach-O, #! script, Contents/MacOS), data files are not',
-      mode('Demo.app/Contents/MacOS/Demo') === 0o755 && mode('Demo.app/Contents/MacOS/helper.sh') === 0o755 && mode('Demo.app/Contents/Frameworks/Thing.framework/Versions/A/Thing') === 0o755 && mode('Demo.app/Contents/Info.plist') === 0o644,
-    )
+    if (onWindows) {
+      check(
+        'folder: executables are recognised (Mach-O, #! script, Contents/MacOS), data files are not',
+        mode('Demo.app/Contents/MacOS/Demo') === 0o755 && mode('Demo.app/Contents/MacOS/helper.sh') === 0o755 && mode('Demo.app/Contents/Frameworks/Thing.framework/Versions/A/Thing') === 0o755 && mode('Demo.app/Contents/Info.plist') === 0o644,
+      )
+    }
   }
 
   // ---- 3. size: thousands of files (multi-level catalog) and multi-chunk files of every chunk type

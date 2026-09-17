@@ -35,7 +35,12 @@ jobs:
           node-version: 24
 
       - name: Self-test (same suite as on Windows)
-        run: node utilities/dmg-maker/test/selftest.cjs
+        id: selftest
+        continue-on-error: true
+        run: |
+          mkdir -p ci-out
+          set -o pipefail
+          node utilities/dmg-maker/test/selftest.cjs 2>&1 | tee "ci-out/selftest-${{ matrix.os }}.txt"
 
       - name: Build the test image
         run: node utilities/dmg-maker/test/make-ci-image.cjs ci-out
@@ -50,13 +55,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          echo "commit ${{ github.sha }} on ${{ matrix.os }}: ${{ steps.judge.outcome }}" > "ci-out/status-${{ matrix.os }}.txt"
+          mkdir -p ci-out
+          echo "commit ${{ github.sha }} on ${{ matrix.os }}: selftest=${{ steps.selftest.outcome }} macos=${{ steps.judge.outcome }}" > "ci-out/status-${{ matrix.os }}.txt"
           gh release view ci-dmg >/dev/null 2>&1 || gh release create ci-dmg --prerelease --title "DMG Maker CI results" --notes "Latest macOS verification output of the DMG writer. Overwritten on every run."
-          files=("ci-out/report-${{ matrix.os }}.txt" "ci-out/status-${{ matrix.os }}.txt")
+          files=("ci-out/status-${{ matrix.os }}.txt")
+          [ -s "ci-out/report-${{ matrix.os }}.txt" ] && files+=("ci-out/report-${{ matrix.os }}.txt")
+          [ -s "ci-out/selftest-${{ matrix.os }}.txt" ] && files+=("ci-out/selftest-${{ matrix.os }}.txt")
           [ -s "ci-out/finder-${{ matrix.os }}.png" ] && files+=("ci-out/finder-${{ matrix.os }}.png")
-          [ "${{ matrix.os }}" = "macos-15" ] && files+=("ci-out/ci-demo.dmg")
+          [ "${{ matrix.os }}" = "macos-15" ] && [ -s ci-out/ci-demo.dmg ] && files+=("ci-out/ci-demo.dmg")
           gh release upload ci-dmg "${files[@]}" --clobber
 
-      - name: Fail the job if macOS rejected the image
-        if: steps.judge.outcome != 'success'
+      - name: Fail the job if anything was rejected
+        if: steps.judge.outcome != 'success' || steps.selftest.outcome != 'success'
         run: exit 1
