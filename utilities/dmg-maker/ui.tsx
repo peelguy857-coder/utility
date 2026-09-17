@@ -265,7 +265,7 @@ export default function DmgMaker() {
 
           <Panel title="Window">
             <Stack gap={14}>
-              <Field label="Cover picture" hint="Fills the window behind the icons.">
+              <Field label="Cover picture" hint="Fills the window behind the icons. Finder writes the icon names in black (white in Dark Mode), so keep the strip under the icons calm and mid-toned.">
                 {background ? (
                   <PathChip path={background} preview={backgroundUrl ? <img src={backgroundUrl} alt="" /> : undefined} icon={ImageIcon} onClear={() => setBackground(null)} />
                 ) : (
