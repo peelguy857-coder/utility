@@ -22,14 +22,37 @@ if (SHOTS_DIR) {
   app.quit()
 } else {
   app.on('second-instance', () => {
+    log('second instance started; bringing this one forward')
     if (!win) return
     if (win.isMinimized()) win.restore()
+    win.show()
     win.focus()
   })
 }
 
 /** @type {BrowserWindow | null} */
 let win = null
+
+// Plain-text log in the profile folder (%APPDATA%\Utility\main.log): the only way to see what the
+// main process did when the window never appeared. Kept small.
+function log(...parts) {
+  const line = `${new Date().toISOString()} ${parts.map((p) => (p instanceof Error ? p.stack || p.message : typeof p === 'string' ? p : JSON.stringify(p))).join(' ')}
+`
+  try {
+    const file = path.join(app.getPath('userData'), 'main.log')
+    try {
+      if (fs.statSync(file).size > 512 * 1024) fs.renameSync(file, file + '.old')
+    } catch {
+      // no log yet
+    }
+    fs.appendFileSync(file, line)
+  } catch {
+    // nowhere to write: give up quietly
+  }
+  if (DEV_URL || SHOTS_DIR) process.stderr.write(line)
+}
+process.on('uncaughtException', (err) => log('uncaughtException', err))
+process.on('unhandledRejection', (err) => log('unhandledRejection', err instanceof Error ? err : String(err)))
 /** @type {Settings} */
 let settings
 /** @type {Registry} */
@@ -122,9 +145,23 @@ function createWindow() {
     },
   })
 
-  win.once('ready-to-show', () => {
-    if (!SHOTS_DIR) win.show()
+  // Show as soon as anything says the page is there — and after 2.5 s regardless. ready-to-show alone
+  // is not reliable (the installed app once sat invisible for minutes with it never firing).
+  let shown = false
+  const show = (why) => {
+    if (shown || SHOTS_DIR || !win || win.isDestroyed()) return
+    shown = true
+    log('showing window:', why)
+    win.show()
+  }
+  win.once('ready-to-show', () => show('ready-to-show'))
+  win.webContents.once('did-finish-load', () => show('did-finish-load'))
+  win.webContents.on('did-fail-load', (_e, code, description, url) => {
+    log('did-fail-load', code, description, url)
+    show('did-fail-load')
   })
+  win.webContents.on('render-process-gone', (_e, details) => log('render-process-gone', details))
+  setTimeout(() => show('timeout'), 2500)
   win.on('close', () => {
     if (win && !win.isMaximized() && !win.isMinimized() && !SHOTS_DIR) settings.data.windowBounds = win.getBounds()
     settings.flush()
@@ -267,6 +304,7 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowedPermissions.has(permission)))
 
   registerIpc()
+  log(`starting ${app.getName()} ${app.getVersion()} electron ${process.versions.electron}, ui from ${DEV_URL || DIST_DIR}`)
   createWindow()
   nativeTheme.on('updated', () => applyTheme(settings.all().theme))
 
