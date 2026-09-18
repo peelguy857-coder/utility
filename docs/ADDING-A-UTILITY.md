@@ -25,7 +25,7 @@ const meta: UtilityMeta = {
   id: 'my-tool',                 // must equal the folder name
   name: 'My Tool',
   tagline: 'One short sentence: what it does for you.',
-  category: 'dev',               // 'ship' | 'phone' | 'media' | 'dev' | 'system'  (see src/lib/registry.ts)
+  category: 'dev',               // 'ship' | 'phone' | 'media' | 'play' | 'dev' | 'system'  (see src/lib/registry.ts)
   icon: Wrench,                  // any lucide-react icon
   hue: 210,                      // 0-360, the tile colour; pick one no neighbour uses
   keywords: ['extra', 'search', 'words'],

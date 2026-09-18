@@ -17,6 +17,7 @@ folder and it appears in the sidebar, the home grid and the `Ctrl K` palette. Wi
 | | **Screen Recorder** | Whole screen or one window → MP4 with PC sound and/or microphone. | Working |
 | | **Image Lab** | Resize, convert, squeeze — presets for YouTube, Steam and Discord. | Working |
 | | **Color Studio** | Screen eyedropper, every colour format (CSS, Godot, Three.js), OKLCH scales, harmonies, WCAG contrast. | Working |
+| Games & fun | **Mystery Maker** | Build an ARG-style treasure hunt: ciphers (Caesar, Vigenère, Base64, Morse, invisible ink…), messages hidden in PNG pixels/metadata and in a WAV's spectrogram, password zips, decoy folder mazes, QR codes, a final reveal page with an unlisted video — plus a solution sheet and a decode-anything tab. | Working |
 | Developer | **Project Launcher** | All your Node projects on one page: start `npm run dev`, watch the log, open the URL, stop. | Working |
 | | **Port Doctor** | What is listening on which port, and end the process that is hogging it. | Working |
 | | **Text Tools** | JSON, Base64, URLs, UUIDs, passwords, timestamps, case changes, hashes. | Working |

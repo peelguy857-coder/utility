@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 
-export type CategoryId = 'ship' | 'phone' | 'media' | 'dev' | 'system'
+export type CategoryId = 'ship' | 'phone' | 'media' | 'play' | 'dev' | 'system'
 
 export interface Category {
   id: CategoryId

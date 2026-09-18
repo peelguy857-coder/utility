@@ -7,6 +7,7 @@ export const CATEGORIES: Category[] = [
   { id: 'ship', name: 'Build & ship' },
   { id: 'phone', name: 'Phone' },
   { id: 'media', name: 'Images & color' },
+  { id: 'play', name: 'Games & fun' },
   { id: 'dev', name: 'Developer' },
   { id: 'system', name: 'System' },
 ]
