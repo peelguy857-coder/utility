@@ -3,7 +3,7 @@ import { ExternalLink, FolderOpen, FolderPlus, Play, RefreshCw, Rocket, ScanSear
 import { core, errorMessage, useBackend, useBackendEvent } from '@/lib/bridge'
 import { cx, formatDuration } from '@/lib/format'
 import { useToast } from '@/components/Toasts'
-import { Badge, Button, Checkbox, Empty, IconButton, Notice, Panel, Row, Select, Stack } from '@/components/ui'
+import { Badge, Button, Checkbox, Empty, IconButton, Notice, Panel, Row, Stack } from '@/components/ui'
 import './ui.css'
 
 interface Project {
@@ -12,11 +12,16 @@ interface Project {
   name: string
   description: string
   scripts: string[]
+  commands?: Record<string, string>
+  kind?: 'tauri' | 'electron' | 'web' | 'node' | 'other'
+  args?: string[]
+  reason?: string
   script: string
   exists: boolean
   running: boolean
   pid: number | null
   since: number | null
+  runningScript?: string | null
   urls: string[]
 }
 interface Candidate {
@@ -36,6 +41,7 @@ export default function Projects() {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [scanning, setScanning] = useState(false)
+  const [showScripts, setShowScripts] = useState(false)
   const [clock, setClock] = useState(Date.now())
   const logRef = useRef<HTMLDivElement>(null)
 
@@ -82,8 +88,12 @@ export default function Projects() {
   const run = async (method: string, args?: unknown) => {
     try {
       const res = await api.invoke<Project[] | { running: boolean } | undefined>(method, args)
-      if (Array.isArray(res)) setProjects(res)
-      else await load()
+      if (Array.isArray(res)) {
+        setProjects(res)
+        // a project that was just added becomes the one on screen
+        if (method === 'add') setSelected(res[res.length - 1]?.id ?? null)
+        else setSelected((sel) => (sel && res.some((p) => p.id === sel) ? sel : res[0]?.id ?? null))
+      } else await load()
     } catch (err) {
       toast.error('That did not work', { detail: errorMessage(err) })
     }
@@ -178,7 +188,7 @@ export default function Projects() {
                   <span className="projects__text">
                     <span className="projects__name">{p.name}</span>
                     <span className="projects__path" title={p.path}>
-                      {p.running && p.since ? `running ${formatDuration(clock - p.since)} · npm run ${p.script}` : p.exists ? p.path : 'folder is missing'}
+                      {p.running && p.since ? `running ${formatDuration(clock - p.since)} · npm run ${p.runningScript ?? p.script}` : p.exists ? p.path : 'folder is missing'}
                     </span>
                   </span>
                   {p.running ? (
@@ -220,7 +230,6 @@ export default function Projects() {
                   <p>{current.description || current.path}</p>
                 </div>
                 <Row gap={6} wrap>
-                  <Select value={current.script} onChange={(script) => run('setScript', { id: current.id, script })} options={current.scripts.map((s) => ({ value: s, label: `npm run ${s}` }))} disabled={current.running} />
                   {current.running ? (
                     <Button variant="danger" icon={Square} onClick={() => run('stop', { id: current.id })}>
                       Stop
@@ -232,6 +241,31 @@ export default function Projects() {
                   )}
                 </Row>
               </div>
+              <div className="projects__runline">
+                <span className="projects__kind">{{ tauri: 'Tauri app', electron: 'Electron app', web: 'Web app', node: 'Node app', other: 'Project' }[current.kind ?? 'other']}</span>
+                <code>npm run {[current.script, ...(current.args ?? [])].join(' ')}</code>
+                {current.commands?.[current.script] && <span className="projects__cmd" title={current.commands[current.script]}>→ {current.commands[current.script]}</span>}
+                <span className="projects__reason">{current.reason ?? ''}</span>
+                {current.scripts.length > 1 && (
+                  <button type="button" className="projects__other" onClick={() => setShowScripts(!showScripts)} disabled={current.running}>
+                    {showScripts ? 'Hide other scripts' : `Other scripts (${current.scripts.length - 1})`}
+                  </button>
+                )}
+              </div>
+              {showScripts && !current.running && (
+                <div className="projects__scripts">
+                  {current.scripts.map((s) => (
+                    <button key={s} type="button" className={cx('projects__script', s === current.script && 'is-picked')} onClick={() => run('setScript', { id: current.id, script: s })} title={current.commands?.[s] ?? ''}>
+                      <strong>{s}</strong>
+                      <span>{current.commands?.[s] ?? ''}</span>
+                    </button>
+                  ))}
+                  <button type="button" className="projects__script projects__script--auto" onClick={() => run('recommend', { id: current.id })}>
+                    <strong>Pick for me</strong>
+                    <span>back to the automatic choice</span>
+                  </button>
+                </div>
+              )}
               <div className="projects__actions">
                 {current.urls.map((url) => (
                   <Button key={url} size="sm" icon={ExternalLink} onClick={() => api.invoke('openUrl', { url })}>

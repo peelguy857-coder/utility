@@ -37,15 +37,35 @@ function findNpmCli(nodeExe) {
 function readPackage(folder) {
   const file = path.join(folder, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(file, 'utf8'))
-  const scripts = pkg.scripts && typeof pkg.scripts === 'object' ? Object.keys(pkg.scripts) : []
-  return { name: pkg.productName || pkg.name || path.basename(folder), scripts, description: typeof pkg.description === 'string' ? pkg.description.slice(0, 120) : '' }
+  const commands = pkg.scripts && typeof pkg.scripts === 'object' ? Object.fromEntries(Object.entries(pkg.scripts).map(([k, v]) => [k, String(v).slice(0, 200)])) : {}
+  const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) }
+  const kind = deps['@tauri-apps/cli'] || commands.tauri ? 'tauri' : deps.electron ? 'electron' : deps.vite || deps.next || deps['react-scripts'] ? 'web' : pkg.main || commands.start ? 'node' : 'other'
+  return { name: pkg.productName || pkg.name || path.basename(folder), scripts: Object.keys(commands), commands, kind, description: typeof pkg.description === 'string' ? pkg.description.slice(0, 120) : '' }
 }
 
-/** Reasonable default script: dev, then start, then the first one. */
-function defaultScript(scripts) {
-  for (const s of ['dev', 'start', 'serve', 'app']) if (scripts.includes(s)) return s
-  return scripts[0] || ''
+/**
+ * Which script to run, worked out from what the project is, so nobody has to know its scripts:
+ * Tauri apps need `tauri dev`; otherwise dev > start > play > serve > app > preview > watch > the
+ * first one. Returns { script, args, reason }.
+ */
+function recommend(info) {
+  const has = (n) => Object.hasOwn(info.commands || {}, n)
+  if (info.kind === 'tauri' && has('tauri')) return { script: 'tauri', args: ['dev'], reason: 'a Tauri app: `tauri dev` builds the Rust side and opens the window' }
+  const order = [
+    ['dev', 'starts the app for development (usually with live reload)'],
+    ['start', 'starts the app'],
+    ['play', "the project's own play script"],
+    ['serve', 'serves the app locally'],
+    ['app', 'opens the app'],
+    ['preview', 'previews the built app'],
+    ['watch', 'rebuilds on every change'],
+  ]
+  for (const [name, reason] of order) if (has(name)) return { script: name, args: [], reason }
+  const first = info.scripts[0]
+  return first ? { script: first, args: [], reason: 'the only script it has' } : { script: '', args: [], reason: 'no scripts in package.json' }
 }
+
+const defaultScript = (scripts) => recommend({ scripts, commands: Object.fromEntries(scripts.map((s) => [s, ''])), kind: 'other' }).script
 
 function projects(ctx) {
   return Array.isArray(ctx.settings.get().projects) ? ctx.settings.get().projects : []
@@ -53,7 +73,8 @@ function projects(ctx) {
 
 function status(id) {
   const r = running.get(id)
-  return { running: !!r, pid: r ? r.child.pid : null, since: r ? r.since : null, script: r ? r.script : null, urls: r ? [...r.urls] : [] }
+  // (named runningScript so it never overwrites the project's own `script` when merged in view())
+  return { running: !!r, pid: r ? r.child.pid : null, since: r ? r.since : null, runningScript: r ? r.script : null, urls: r ? [...r.urls] : [] }
 }
 
 function view(ctx) {
@@ -118,7 +139,8 @@ module.exports = {
       }
       const list = projects(ctx)
       if (list.some((p) => path.resolve(p.path) === path.resolve(folder))) throw new Error('That project is already in the list')
-      const project = { id: `p${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, path: folder, name: info.name, description: info.description, scripts: info.scripts, script: defaultScript(info.scripts) }
+      const rec = recommend(info)
+      const project = { id: `p${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, path: folder, name: info.name, description: info.description, scripts: info.scripts, commands: info.commands, kind: info.kind, script: rec.script, args: rec.args, reason: rec.reason }
       ctx.settings.set({ projects: [...list, project] })
       ctx.allow(folder)
       return view(ctx)
@@ -148,7 +170,7 @@ module.exports = {
             if (!known.has(key)) {
               try {
                 const info = readPackage(full)
-                if (info.scripts.length) found.push({ path: full, name: info.name, scripts: info.scripts, script: defaultScript(info.scripts) })
+                if (info.scripts.length) found.push({ path: full, name: info.name, scripts: info.scripts, script: recommend(info).script, kind: info.kind })
               } catch {
                 // unreadable package.json: skip
               }
@@ -166,7 +188,8 @@ module.exports = {
         try {
           const info = readPackage(folder)
           if (list.some((p) => path.resolve(p.path) === path.resolve(folder))) continue
-          list.push({ id: `p${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, path: folder, name: info.name, description: info.description, scripts: info.scripts, script: defaultScript(info.scripts) })
+          const rec = recommend(info)
+          list.push({ id: `p${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`, path: folder, name: info.name, description: info.description, scripts: info.scripts, commands: info.commands, kind: info.kind, script: rec.script, args: rec.args, reason: rec.reason })
           ctx.allow(folder)
         } catch {
           // skip
@@ -184,7 +207,19 @@ module.exports = {
     },
 
     async setScript({ id, script }, ctx) {
-      ctx.settings.set({ projects: projects(ctx).map((p) => (p.id === id ? { ...p, script: String(script) } : p)) })
+      const name = String(script)
+      ctx.settings.set({ projects: projects(ctx).map((p) => (p.id === id ? { ...p, script: name, args: p.kind === 'tauri' && name === 'tauri' ? ['dev'] : [], reason: 'chosen by you' } : p)) })
+      return view(ctx)
+    },
+
+    /** Back to the automatic choice. */
+    async recommend({ id }, ctx) {
+      const list = projects(ctx)
+      const p = list.find((x) => x.id === id)
+      if (!p) throw new Error('Unknown project')
+      const info = readPackage(p.path)
+      Object.assign(p, { scripts: info.scripts, commands: info.commands, kind: info.kind, ...recommend(info) })
+      ctx.settings.set({ projects: list })
       return view(ctx)
     },
 
@@ -193,7 +228,8 @@ module.exports = {
       const p = list.find((x) => x.id === id)
       if (!p) throw new Error('Unknown project')
       const info = readPackage(p.path)
-      Object.assign(p, { name: info.name, scripts: info.scripts, description: info.description, script: info.scripts.includes(p.script) ? p.script : defaultScript(info.scripts) })
+      const rec = recommend(info)
+      Object.assign(p, { name: info.name, scripts: info.scripts, commands: info.commands, kind: info.kind, description: info.description, ...(info.scripts.includes(p.script) ? {} : rec) })
       ctx.settings.set({ projects: list })
       return view(ctx)
     },
@@ -216,7 +252,8 @@ module.exports = {
       if (!npmCli) throw new Error('npm was not found next to node.exe')
 
       logs.set(id, [])
-      const child = spawn(node, [npmCli, 'run', name], {
+      const extra = Array.isArray(p.args) ? p.args.map(String) : []
+      const child = spawn(node, [npmCli, 'run', name, ...extra], {
         cwd: p.path,
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -224,7 +261,7 @@ module.exports = {
       })
       const entry = { child, since: Date.now(), urls: new Set(), script: name }
       running.set(id, entry)
-      pushLine(ctx, id, `> npm run ${name}   (in ${p.path})`, 'system')
+      pushLine(ctx, id, `> npm run ${[name, ...extra].join(' ')}   (in ${p.path})`, 'system')
       child.stdout.on('data', (d) => pushLine(ctx, id, d.toString('utf8'), 'out'))
       child.stderr.on('data', (d) => pushLine(ctx, id, d.toString('utf8'), 'err'))
       child.on('error', (err) => pushLine(ctx, id, `could not start: ${err.message}`, 'err'))
