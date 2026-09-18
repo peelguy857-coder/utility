@@ -1,0 +1,86 @@
+.mv__frame {
+  position: relative;
+  height: calc(100vh - 230px);
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: radial-gradient(80% 80% at 50% 40%, #1b1f2b, #0b0c10);
+}
+.mv__frame--light {
+  background: radial-gradient(80% 80% at 50% 40%, #ffffff, #d9dbe0);
+}
+.mv__frame--grid {
+  background: #10131a;
+}
+.mv__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.mv__hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+.mv__frame--light .mv__hint {
+  color: #444;
+}
+.mv__sub {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+/* an invisible drop target covering the whole frame; the visible one lives in the side panel */
+.mv__frame .dropzone {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: none;
+}
+.mv__frame .dropzone.is-over {
+  pointer-events: auto;
+  border: 2px dashed var(--tint);
+  background: var(--tint-soft);
+}
+
+.mv__textures {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mv__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.mv__texture {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.mv__texture span:last-child {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.mv__anim {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+.mv__anim .select {
+  flex: 1;
+}

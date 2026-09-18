@@ -6,17 +6,21 @@ folder and it appears in the sidebar, the home grid and the `Ctrl K` palette. Wi
 
 | | Utility | What it does | Status |
 |---|---|---|---|
-| Build & ship | **DMG Maker** | Turns a Mac `.app` (folder or `.zip`) into a drag-to-install `.dmg` — on Windows, no Mac needed. Cover picture, icon layout, disk icon. | Engine done: images are verified on real Macs (macOS 15 + 26) by CI — `hdiutil verify`, `fsck_hfs`, mount, every file compared, Finder layout |
+| Build & ship | **DMG Maker** | Turns a Mac `.app` (folder or `.zip`) into a drag-to-install `.dmg` — on Windows, no Mac needed. Cover picture, icon layout, disk icon. | Verified on real Macs (macOS 15 + 26) by CI |
 | | **Icon Forge** | One picture → `.ico`, `.icns`, PNG set, favicons, Electron and Tauri icon folders. | Working |
-| Phone | **Phone Drop** | Files, photos and text between PC and phone over Wi-Fi: scan a QR code, done. | Working |
+| | **Steam Page Kit** | Every capsule, hero, logo and screenshot size a Steam store page needs, cropped to exact size. | Working |
+| | **3D Model Viewer** | Drop a `.glb`: spin it, triangles, materials, textures, animations. | Working |
+| Phone | **Phone Mirror** | iPhone screen in a window via AirPlay (receiver written in JS): sound (AAC-ELD via FFmpeg-wasm), volume, MP4 recording. | Works with a real iPhone; engine not in the repo yet (licence decision pending) |
+| | **Phone Drop** | Files, photos and text between PC and phone over Wi-Fi: scan a QR code, done. | Working |
 | | **QR Maker** | Links, text and Wi-Fi logins as PNG/SVG QR codes. | Working |
-| | **Phone Mirror** | iPhone screen in a window via AirPlay (receiver written in JS), with sound, volume and MP4 recording. | Works with a real iPhone; engine not in the repo yet (licence decision pending) |
 | Images & colour | **Thumbnail Tester** | Your YouTube thumbnail in the home feed, search, sidebar and on a phone, next to other videos — plus size/ratio/2 MB checks. | Working |
-| | **Image Lab** | Resize, convert, squeeze — presets for YouTube, Steam and Discord. | Built, needs a polish pass |
-| Developer | **Port Doctor** | What is listening on which port, and end the process that is hogging it. | Working |
+| | **Screen Recorder** | Whole screen or one window → MP4 with PC sound and/or microphone. | Working |
+| | **Image Lab** | Resize, convert, squeeze — presets for YouTube, Steam and Discord. | Working |
+| | **Color Studio** | Screen eyedropper, every colour format (CSS, Godot, Three.js), OKLCH scales, harmonies, WCAG contrast. | Working |
+| Developer | **Project Launcher** | All your Node projects on one page: start `npm run dev`, watch the log, open the URL, stop. | Working |
+| | **Port Doctor** | What is listening on which port, and end the process that is hogging it. | Working |
+| | **Text Tools** | JSON, Base64, URLs, UUIDs, passwords, timestamps, case changes, hashes. | Working |
 | | **File Hash** | Checksums for any file and a one-paste download check. | Working |
-
-Planned next: Color Studio (eyedropper, palettes, contrast) and Text Tools (JSON, Base64, UUIDs, timestamps).
 
 ## Run it
 

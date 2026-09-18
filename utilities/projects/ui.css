@@ -1,0 +1,134 @@
+.projects {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1040px) {
+  .projects {
+    grid-template-columns: 1fr;
+  }
+}
+
+.projects__list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+.projects__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 6px 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  text-align: left;
+  color: var(--text);
+}
+.projects__item:hover {
+  background: var(--bg-elev);
+}
+.projects__item.is-selected {
+  background: var(--bg-elev-2);
+}
+.projects__dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.projects__dot.is-on {
+  background: var(--ok);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--ok) 18%, transparent);
+}
+.projects__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.projects__name {
+  font-weight: 500;
+}
+.projects__path {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projects__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+}
+.projects__titles {
+  min-width: 0;
+}
+.projects__titles h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 15px var(--font-display);
+}
+.projects__titles p {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.projects__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 10px;
+}
+.projects__spacer {
+  flex: 1;
+}
+.projects__log {
+  height: 420px;
+  overflow: auto;
+  padding: 10px 14px;
+  border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--bg-inset);
+  font: 12px/1.6 var(--font-mono);
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+.projects__log .is-system {
+  color: var(--accent-text);
+}
+.projects__log-empty {
+  color: var(--text-faint);
+  font-family: var(--font);
+}
+
+.projects__cands {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+.projects__cand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.projects__cand span {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}

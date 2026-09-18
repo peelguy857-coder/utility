@@ -1,6 +1,7 @@
 // Main process: one window, a small set of "core" services the UI can call, and the
 // router that forwards everything else to the matching utilities/<id>/main.cjs backend.
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, nativeImage, session, Menu } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, nativeImage, session, Menu, protocol, net } = require('electron')
+const { pathToFileURL } = require('node:url')
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -180,7 +181,7 @@ function createWindow() {
   })
 
   if (DEV_URL) win.loadURL(DEV_URL)
-  else win.loadFile(path.join(DIST_DIR, 'index.html'))
+  else win.loadURL('app://utility/index.html')
 }
 
 // ---------------------------------------------------------------- ipc
@@ -290,6 +291,21 @@ function registerIpc() {
 
 // ---------------------------------------------------------------- lifecycle
 
+// The built UI is served from app://utility/ instead of file://. A real origin means Web Workers,
+// fetch() and WebAssembly behave as on a website (file:// pages may not start workers at all).
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: false, stream: true } }])
+
+function serveDist() {
+  protocol.handle('app', (request) => {
+    const url = new URL(request.url)
+    let rel = decodeURIComponent(url.pathname).replace(/^\/+/, '')
+    if (!rel) rel = 'index.html'
+    const file = path.resolve(DIST_DIR, rel)
+    if (!file.startsWith(DIST_DIR + path.sep) && file !== DIST_DIR) return new Response('Not found', { status: 404 })
+    return net.fetch(pathToFileURL(file).toString())
+  })
+}
+
 // Groups the window under its own taskbar button (with our icon) instead of "Electron".
 if (process.platform === 'win32') app.setAppUserModelId('com.peelguy857.utility')
 
@@ -303,6 +319,7 @@ app.whenReady().then(async () => {
   const allowedPermissions = new Set(['clipboard-sanitized-write', 'fullscreen'])
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowedPermissions.has(permission)))
 
+  serveDist()
   registerIpc()
   log(`starting ${app.getName()} ${app.getVersion()} electron ${process.versions.electron}, ui from ${DEV_URL || DIST_DIR}`)
   createWindow()

@@ -1,0 +1,209 @@
+.cs__hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 190px;
+  padding: 20px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  transition: background 0.15s;
+}
+.cs__hero-hex {
+  font: 600 34px var(--font-mono);
+  letter-spacing: 0.02em;
+  user-select: text;
+}
+.cs__hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cs__native {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cs__native input {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid rgb(0 0 0 / 0.25);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+.cs__native input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.cs__native input::-webkit-color-swatch {
+  border: 0;
+  border-radius: 50%;
+}
+.cs__input {
+  position: relative;
+  padding: 12px 16px 14px;
+}
+.cs__bad {
+  position: absolute;
+  right: 26px;
+  top: 20px;
+  font-size: 12px;
+  color: var(--err);
+}
+
+.cs__values {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 6px 14px;
+}
+.cs__value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.cs__value-label {
+  width: 118px;
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.cs__value code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  padding: 0;
+  color: var(--text);
+  user-select: text;
+}
+
+.cs__scale {
+  display: flex;
+  gap: 4px;
+}
+.cs__step {
+  flex: 1;
+  height: 56px;
+  border: 0;
+  border-radius: 8px;
+  font: 600 11px var(--font-mono);
+  transition: transform 0.12s;
+}
+.cs__step:hover {
+  transform: translateY(-2px);
+}
+
+.cs__harmonies {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+.cs__harmony-name {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.cs__harmony-row {
+  display: flex;
+  gap: 6px;
+}
+.cs__chip {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.15);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.cs__chip:hover {
+  transform: scale(1.08);
+}
+.cs__chip.is-current {
+  border-color: var(--text);
+}
+.cs__chip--sm {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+}
+
+.cs__sample {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+}
+.cs__sample-big {
+  font: 700 22px var(--font-display);
+}
+.cs__bgrow {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+.cs__ratio {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cs__ratio strong {
+  font: 600 20px var(--font-mono);
+}
+.cs__badges {
+  display: flex;
+  gap: 4px;
+}
+
+.cs__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cs__saved {
+  position: relative;
+}
+.cs__forget {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cs__saved:hover .cs__forget {
+  opacity: 1;
+}
+.cs__label {
+  margin: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.cs__muted {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
