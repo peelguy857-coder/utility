@@ -16,7 +16,7 @@
     "shots": "node tools/shots.cjs",
     "pack": "node tools/pack-portable.cjs",
     "install-app": "node tools/pack-portable.cjs --install",
-    "icon": "electron tools/make-icon.cjs"
+    "icon": "node tools/make-icon.cjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.5",

@@ -39,7 +39,7 @@ console.log('[pack] building the UI')
 run(process.execPath, [path.join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--logLevel', 'warn'], { env: { ...process.env, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' } })
 
 console.log('[pack] copying the Electron runtime to', target)
-const runtime = path.join(root, 'node_modules', 'electron', 'dist')
+const runtime = require('./lib/electron-path.cjs').runtimeDir()
 try {
   fs.rmSync(target, { recursive: true, force: true })
 } catch (err) {

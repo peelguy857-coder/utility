@@ -1,8 +1,14 @@
 // Draws the app icon from SVG and writes assets/icon.png (1024), assets/icon-256.png and assets/icon.ico.
 // Run with Electron because it has a real renderer:  npx electron tools/make-icon.cjs
-const { app, BrowserWindow } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
+if (!process.versions.electron) {
+  // started with plain node: run again inside Electron
+  const { spawnSync } = require('node:child_process')
+  const res = spawnSync(require('./lib/electron-path.cjs').electronExe(), [__filename], { stdio: 'inherit' })
+  process.exit(res.status ?? 1)
+}
+const { app, BrowserWindow } = require('electron')
 
 const SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">

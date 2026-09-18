@@ -20,7 +20,7 @@ if (!process.env.UTILITY_SHOTS_NO_BUILD) {
 }
 
 fs.rmSync(dir, { recursive: true, force: true })
-const res = spawnSync(require('electron'), ['.'], {
+const res = spawnSync(require('./lib/electron-path.cjs').electronExe(), ['.'], {
   cwd: root,
   stdio: 'inherit',
   env: { ...process.env, UTILITY_SHOTS_DIR: dir, UTILITY_SHOTS_ONLY: only, UTILITY_DIST: dist },

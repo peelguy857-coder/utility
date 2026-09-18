@@ -9,7 +9,7 @@ async function main() {
   const url = server.resolvedUrls.local[0]
   console.log('[dev] UI at', url)
 
-  const electron = require('electron') // path to the binary when required from Node
+  const electron = require('./lib/electron-path.cjs').electronExe()
   const child = spawn(electron, ['.'], {
     cwd: path.join(__dirname, '..'),
     stdio: 'inherit',

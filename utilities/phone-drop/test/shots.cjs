@@ -19,6 +19,8 @@ module.exports = async (t) => {
   const work = path.join(t.tmpDir(), 'phone-drop')
   fs.rmSync(work, { recursive: true, force: true })
   fs.mkdirSync(work, { recursive: true })
+  // the backend keeps test uploads under the app's temp folder; start clean so names have no " (2)"
+  fs.rmSync(path.join(require('node:os').tmpdir(), 'utility-app', 'phone-drop', 'received'), { recursive: true, force: true })
 
   if (!(await t.clickText('Start sharing'))) throw new Error('no Start button')
   await t.sleep(900)
@@ -59,7 +61,7 @@ module.exports = async (t) => {
   phone.destroy()
 
   const pcSide = await t.text('.keepalive:not([hidden]) .workbench__main')
-  if (!pcSide.includes('IMG_2041.HEIC') || !pcSide.includes('correct-horse')) throw new Error('PC side is missing what the phone sent')
+  if (!/IMG_2041.*\.HEIC/.test(pcSide) || !pcSide.includes('correct-horse')) throw new Error('PC side is missing what the phone sent')
   await t.capture('after-transfer')
 
   await t.clickText('Stop sharing')
