@@ -1,12 +1,16 @@
 // A hunt is a chain: START → stage 1 → stage 2 → … → finale. Every stage hides one message, and
 // that message is written by the tool: the stage's own story line plus the pointer to the next stage
-// (its file or page, and the password/keyword if it needs one). The maker only chooses how each stage
-// hides things and writes the flavour text — the wiring between stages is never typed by hand.
+// (its file, page or link, and the password/keyword if it needs one). The maker only chooses how each
+// stage hides things and writes the flavour text — the wiring between stages is never typed by hand.
 //
 // Two ways to play it:
-//   files — one folder: START.txt next to the stage files; a "zip" stage swallows everything after it.
-//   site  — a static website: every stage is a page at an unguessable address; START.txt holds the
-//           first link; "gate" pages ask for a password and decrypt the next link in the browser.
+//   site  — a website the app publishes: every stage is a page at an unguessable address; the player
+//           only gets START.txt with the first link; "gate" pages ask for a password and decrypt the
+//           next link in the browser. Any stage can instead live at a link of the maker's own (a video
+//           description, a pastebin…), so the hunt can be scattered across the internet.
+//   files — one folder: START.txt next to the stage files. With lockAll every stage after the first
+//           sits in a password zip whose password is only revealed by the stage before it, so having
+//           the whole folder does not let anyone skip ahead.
 import { drawQr, qrMatrix } from '@/lib/qr'
 import { describeLayer, encodeAll, type Layer } from './ciphers'
 import { lsbEmbed, pngAddText } from './stego'
@@ -16,6 +20,7 @@ import { buildZip } from './zip'
 export type StageKind = 'cipher' | 'image' | 'audio' | 'zip' | 'gate' | 'qr' | 'folder'
 export type CipherPreset = 'caesar' | 'vigenere' | 'base64' | 'morse' | 'invisible' | 'mix'
 export type HuntMode = 'files' | 'site'
+export type Where = 'auto' | 'link'
 
 export interface Stage {
   id: string
@@ -23,10 +28,13 @@ export interface Stage {
   title: string
   /** one or two lines of story revealed together with the pointer to the next stage */
   story: string
-  /** the secret this stage guards: password (zip/gate), keyword (Vigenère); an audio stage spells the NEXT stage's word */
+  /** the secret this stage guards: password (zip/gate/locked file), keyword (Vigenère); an audio stage spells the NEXT stage's word */
   word: string
   /** website address part, unguessable */
   slug: string
+  /** auto: on the hunt site / in the folder. link: the maker puts the clue at their own link */
+  where: Where
+  link: string
   cipher: CipherPreset
   imageMethod: 'lsb' | 'text' | 'both'
   coverPath: string | null
@@ -39,8 +47,12 @@ export interface Chain {
   name: string
   mode: HuntMode
   siteUrl: string
+  /** Netlify site id once published from the app */
+  siteId: string
+  /** folder hunts: every stage after the first is in a password zip opened by the previous clue */
+  lockAll: boolean
   intro: string
-  finale: { message: string; url: string; word: string; slug: string }
+  finale: { message: string; url: string; word: string; slug: string; direct: boolean }
   stages: Stage[]
 }
 
@@ -60,16 +72,18 @@ export const randomSlug = () => Array.from(crypto.getRandomValues(new Uint8Array
 
 let counter = 0
 export function makeStage(kind: StageKind): Stage {
-  return { id: `g${Date.now().toString(36)}${(counter++).toString(36)}`, kind, title: '', story: '', word: randomWord(), slug: randomSlug(), cipher: 'caesar', imageMethod: 'lsb', coverPath: null, decoys: 24, hint: true }
+  return { id: `g${Date.now().toString(36)}${(counter++).toString(36)}`, kind, title: '', story: '', word: randomWord(), slug: randomSlug(), where: 'auto', link: '', cipher: 'caesar', imageMethod: 'lsb', coverPath: null, decoys: 24, hint: true }
 }
 
 export function emptyChain(): Chain {
   return {
     name: 'Untitled hunt',
-    mode: 'files',
+    mode: 'site',
     siteUrl: '',
+    siteId: '',
+    lockAll: true,
     intro: 'Someone left this behind on purpose.\nEverything here means something.',
-    finale: { message: 'You followed every thread. This was never meant to be found.', url: '', word: randomWord(), slug: randomSlug() },
+    finale: { message: 'You followed every thread. This was never meant to be found.', url: '', word: randomWord(), slug: randomSlug(), direct: false },
     stages: [],
   }
 }
@@ -124,37 +138,58 @@ const safe = (name: string) => name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'fi
 const EXT: Record<StageKind, string> = { cipher: 'txt', image: 'png', audio: 'wav', zip: 'zip', gate: 'html', qr: 'png', folder: 'txt' }
 export const needsWord = (s: Stage) => s.kind === 'zip' || s.kind === 'gate' || (s.kind === 'cipher' && (s.cipher === 'vigenere' || s.cipher === 'mix'))
 export const wordLabel = (s: Stage) => (s.kind === 'cipher' ? 'keyword' : 'password')
+export const linked = (s: Stage) => s.where === 'link' && s.kind !== 'gate'
 const afterAudio = (chain: Chain, i: number) => i > 0 && chain.stages[i - 1].kind === 'audio'
 const siteRoot = (chain: Chain) => chain.siteUrl.trim().replace(/\/+$/, '') || '<your site>'
+const linkOf = (s: Stage) => s.link.trim() || '<your link>'
 
-/** File name of stage i in a folder hunt. After a sound stage the file is named by the word the sound spells. */
-export function fileNameOf(chain: Chain, i: number): string {
+/** In a folder hunt with lockAll, stage i (after the first) sits in a password zip. */
+export const lockedAt = (chain: Chain, i: number) => chain.mode === 'files' && chain.lockAll && i >= 1 && i < chain.stages.length && !linked(chain.stages[i]) && chain.stages[i].kind !== 'zip'
+export const finaleLocked = (chain: Chain) => chain.mode === 'files' && chain.lockAll && chain.stages.length >= 1 && !chain.finale.direct
+
+function baseOf(chain: Chain, i: number): string {
   const s = chain.stages[i]
-  const named = afterAudio(chain, i) && !needsWord(s) ? s.word : safe(s.title || s.kind)
-  return `${named}.${EXT[s.kind]}`
+  return afterAudio(chain, i) && !needsWord(s) && !lockedAt(chain, i) ? s.word : safe(s.title || s.kind)
 }
+/** The file the clue is in (inside its lock zip, if any). */
+export const assetNameOf = (chain: Chain, i: number) => `${baseOf(chain, i)}.${EXT[chain.stages[i].kind]}`
+/** File name of stage i as the player meets it in a folder hunt. */
+export const fileNameOf = (chain: Chain, i: number) => (lockedAt(chain, i) ? `${baseOf(chain, i)}.zip` : assetNameOf(chain, i))
 /** Address part of stage i in a website hunt. After a sound stage the address is the word the sound spells. */
 export function slugOf(chain: Chain, i: number): string {
   const s = chain.stages[i]
   return afterAudio(chain, i) ? s.word.toLowerCase() : s.slug
 }
 const lastIsAudio = (chain: Chain) => chain.stages.length > 0 && chain.stages[chain.stages.length - 1].kind === 'audio'
-export const finaleFile = (chain: Chain) => (lastIsAudio(chain) ? `${chain.finale.word}.html` : 'the end.html')
+const finaleBase = (chain: Chain) => (lastIsAudio(chain) ? chain.finale.word : 'the end')
+export const finaleFile = (chain: Chain) => `${finaleBase(chain)}.${finaleLocked(chain) ? 'zip' : 'html'}`
 export const finaleSlug = (chain: Chain) => (lastIsAudio(chain) ? chain.finale.word.toLowerCase() : chain.finale.slug)
 
 /** Where the player is told to go for stage i (or the finale when i is past the end). */
 export function whereIs(chain: Chain, i: number): string {
-  if (i >= chain.stages.length) return chain.mode === 'site' ? `${siteRoot(chain)}/${finaleSlug(chain)}/` : finaleFile(chain)
+  if (i >= chain.stages.length) {
+    if (chain.finale.direct) return chain.finale.url.trim() || '<your link>'
+    return chain.mode === 'site' ? `${siteRoot(chain)}/${finaleSlug(chain)}/` : finaleFile(chain)
+  }
+  const s = chain.stages[i]
+  if (linked(s)) return linkOf(s)
   return chain.mode === 'site' ? `${siteRoot(chain)}/${slugOf(chain, i)}/` : fileNameOf(chain, i)
 }
+const isUrl = (chain: Chain, i: number) => chain.mode === 'site' || (i < chain.stages.length ? linked(chain.stages[i]) : chain.finale.direct)
 
 /** The line that gets the player from stage i to stage i+1 (or to the finale). */
 export function pointer(chain: Chain, i: number): string {
   const here = chain.stages[i]
   const next = chain.stages[i + 1] as Stage | undefined
   if (here.kind === 'audio') return next ? next.word : chain.finale.word // a spectrogram can only spell one word
-  const go = chain.mode === 'site' ? `Go to ${whereIs(chain, i + 1)}` : `Open "${whereIs(chain, i + 1)}"`
-  return next && needsWord(next) ? `${go}\n${wordLabel(next)}: ${next.word}` : go
+  const go = isUrl(chain, i + 1) ? `Go to ${whereIs(chain, i + 1)}` : `Open "${whereIs(chain, i + 1)}"`
+  if (next) {
+    const lock = lockedAt(chain, i + 1)
+    if (lock && needsWord(next)) return `${go}\n${wordLabel(next)} and zip password: ${next.word}`
+    if (lock) return `${go}\npassword: ${next.word}`
+    return needsWord(next) ? `${go}\n${wordLabel(next)}: ${next.word}` : go
+  }
+  return finaleLocked(chain) ? `${go}\npassword: ${chain.finale.word}` : go
 }
 
 /** The full hidden message of stage i: its story line, then the pointer. */
@@ -167,7 +202,7 @@ export function messageOf(chain: Chain, i: number): string {
 /** The one thing the maker hands out. */
 export function startNote(chain: Chain): string {
   const first = chain.stages[0] as Stage | undefined
-  const go = chain.mode === 'site' ? `Go to ${whereIs(chain, 0)}` : first ? `Start with "${whereIs(chain, 0)}"` : `Open "${whereIs(chain, 0)}"`
+  const go = isUrl(chain, 0) ? `Go to ${whereIs(chain, 0)}` : first ? `Start with "${whereIs(chain, 0)}"` : `Open "${whereIs(chain, 0)}"`
   const to = first && needsWord(first) ? `${go}\n${wordLabel(first)}: ${first.word}` : go
   return [chain.intro.trim(), to].filter(Boolean).join('\n\n') + '\n'
 }
@@ -210,6 +245,21 @@ export function howSolved(s: Stage): string {
   }
 }
 
+/** What the maker has to do by hand for a stage that lives at their own link. */
+export function placementOf(chain: Chain, i: number): string {
+  const s = chain.stages[i]
+  const name = assetNameOf(chain, i)
+  switch (s.kind) {
+    case 'cipher':
+      return `paste the cipher text at ${linkOf(s)} (a video description, a pastebin, a comment, a doc…)`
+    case 'zip':
+    case 'folder':
+      return `upload "${name}" so that it can be downloaded from ${linkOf(s)}`
+    default:
+      return `upload "${name}" so that it is at ${linkOf(s)} (keep it a ${EXT[s.kind].toUpperCase()}; converting it would destroy the hidden part)`
+  }
+}
+
 export interface Hop {
   /** what the player has in hand at this point */
   at: string
@@ -226,34 +276,50 @@ export const kindLabel = (kind: StageKind) => STAGE_KINDS.find((k) => k.kind ===
 export function storyboard(chain: Chain): Hop[] {
   const hops: Hop[] = [{ at: 'START.txt — what you hand out', says: startNote(chain).trim(), how: 'read it', key: '' }]
   chain.stages.forEach((s, i) => {
+    const lock = lockedAt(chain, i)
     hops.push({
-      at: `${i + 1}. ${s.title || kindLabel(s.kind)} — ${whereIs(chain, i)}`,
+      at: `${i + 1}. ${s.title || kindLabel(s.kind)} — ${whereIs(chain, i)}${linked(s) ? ' (your own link)' : ''}`,
       says: messageOf(chain, i),
-      how: howSolved(s),
-      key: needsWord(s) ? `${wordLabel(s)} ${s.word}` : '',
+      how: (lock ? `extract with the password "${s.word}", then ` : '') + howSolved(s),
+      key: lock || needsWord(s) ? `${lock && !needsWord(s) ? 'password' : wordLabel(s)} ${s.word}` : '',
     })
   })
-  hops.push({ at: `Finale — ${whereIs(chain, chain.stages.length)}`, says: [chain.finale.message, chain.finale.url].filter(Boolean).join('\n'), how: 'open it', key: '' })
+  hops.push({
+    at: `Finale — ${whereIs(chain, chain.stages.length)}${chain.finale.direct ? ' (straight to the link)' : ''}`,
+    says: chain.finale.direct ? chain.finale.url.trim() || '<your link>' : [chain.finale.message, chain.finale.url].filter(Boolean).join('\n'),
+    how: finaleLocked(chain) ? `extract with the password "${chain.finale.word}" and open it` : 'open it',
+    key: finaleLocked(chain) ? `password ${chain.finale.word}` : '',
+  })
   return hops
 }
 
 export function solutionSheet(chain: Chain): string {
   const lines = [`SOLUTION — ${chain.name}`, 'For the maker only. Not part of the hunt.', '']
   storyboard(chain).forEach((h) => lines.push(h.at, `   says: ${h.says.replace(/\n+/g, ' / ')}`, `   how:  ${h.how}`, ...(h.key ? [`   key:  ${h.key}`] : []), ''))
+  const own = chain.stages.map((s, i) => (linked(s) ? `   ${placementOf(chain, i)}` : '')).filter(Boolean)
+  if (own.length) lines.push('Things you put online yourself:', ...own, '')
   return lines.join('\n')
 }
 
 /** Things that would make the hunt unsolvable or silly, checked live in the editor. */
 export function problems(chain: Chain): string[] {
   const out: string[] = []
-  if (chain.mode === 'site' && !chain.siteUrl.trim()) out.push('Website hunts need the address the pages will live at (every clue says "go to <address>/…").')
+  const anyOnSite = chain.stages.some((s) => !linked(s)) || !chain.finale.direct
+  if (chain.mode === 'site' && anyOnSite && !chain.siteUrl.trim()) out.push('The pages need an address (every clue says "go to <address>/…"). Publish once to get one, or type the address you will host it at.')
   if (chain.mode === 'site' && chain.siteUrl.trim() && !/^https?:\/\//i.test(chain.siteUrl.trim())) out.push('The website address should start with https://')
+  if (chain.finale.direct && !chain.finale.url.trim()) out.push('The finale is set to go straight to a link, but there is no link yet.')
   chain.stages.forEach((s, i) => {
     const name = `Stage ${i + 1}${s.title ? ` (${s.title})` : ''}`
+    const next = chain.stages[i + 1] as Stage | undefined
     if (s.kind === 'gate' && chain.mode === 'files') out.push(`${name}: a password page only works in a website hunt. Use a locked zip instead.`)
-    if (s.kind === 'audio' && chain.stages[i + 1]?.kind === 'audio') out.push(`${name}: two sound stages in a row cannot chain (a sound can only spell one word).`)
+    if (linked(s) && !s.link.trim()) out.push(`${name}: it is set to live at your own link, but there is no link yet.`)
+    if (linked(s) && s.link.trim() && !/^https?:\/\//i.test(s.link.trim())) out.push(`${name}: the link should start with https://`)
+    if (s.kind === 'audio' && next?.kind === 'audio') out.push(`${name}: two sound stages in a row cannot chain (a sound can only spell one word).`)
+    if (s.kind === 'audio' && next && linked(next)) out.push(`${name}: a sound can only spell a word, so the stage after it cannot be at your own link.`)
+    if (s.kind === 'audio' && !next && chain.finale.direct) out.push(`${name}: a sound can only spell a word, so the finale after it cannot be a direct link.`)
     if (needsWord(s) && !/^[A-Za-z0-9]{3,24}$/.test(s.word)) out.push(`${name}: the ${wordLabel(s)} should be 3–24 letters or digits, no spaces.`)
-    if (s.kind === 'audio' && chain.stages[i + 1] && !/^[A-Za-z0-9]{2,12}$/.test(chain.stages[i + 1].word)) out.push(`${name}: the sound spells the next stage's word, which must be 2–12 letters or digits.`)
+    if (lockedAt(chain, i) && !/^[A-Za-z0-9]{3,24}$/.test(s.word)) out.push(`${name}: the password should be 3–24 letters or digits, no spaces.`)
+    if (s.kind === 'audio' && next && !/^[A-Za-z0-9]{2,12}$/.test(next.word)) out.push(`${name}: the sound spells the next stage's word, which must be 2–12 letters or digits.`)
   })
   return out
 }
@@ -312,6 +378,70 @@ function maze(s: Stage, message: string, root: string): OutFile[] {
   return files
 }
 
+/** A found-footage style night frame: grain, lamps, a skyline, a vignette and a camcorder stamp. */
+export function generatedCover(seed: string, w = 1280, h = 800): OffscreenCanvas {
+  const r = rng(seed)
+  const c = new OffscreenCanvas(w, h)
+  const ctx = c.getContext('2d')!
+  const sky = ctx.createLinearGradient(0, 0, 0, h)
+  sky.addColorStop(0, '#05070c')
+  sky.addColorStop(0.55, '#111826')
+  sky.addColorStop(1, '#1b1a1f')
+  ctx.fillStyle = sky
+  ctx.fillRect(0, 0, w, h)
+  // distant lamps
+  for (let k = 0; k < 4 + Math.floor(r() * 4); k++) {
+    const x = r() * w
+    const y = h * (0.45 + r() * 0.25)
+    const rad = 60 + r() * 160
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad)
+    g.addColorStop(0, `rgba(255,${190 + Math.floor(r() * 50)},${120 + Math.floor(r() * 60)},${0.55 + r() * 0.3})`)
+    g.addColorStop(1, 'rgba(255,200,140,0)')
+    ctx.fillStyle = g
+    ctx.fillRect(x - rad, y - rad, rad * 2, rad * 2)
+  }
+  // skyline silhouettes
+  const horizon = h * (0.62 + r() * 0.1)
+  ctx.fillStyle = '#07080b'
+  for (let x = 0; x < w; ) {
+    const bw = 40 + r() * 140
+    const bh = 40 + r() * 220
+    ctx.fillRect(x, horizon - bh, bw, h)
+    for (let wy = horizon - bh + 12; wy < horizon - 8; wy += 22) for (let wx = x + 8; wx < x + bw - 8; wx += 18) if (r() < 0.08) ctx.fillStyle = `rgba(255,220,160,${0.4 + r() * 0.5})`, ctx.fillRect(wx, wy, 6, 9), (ctx.fillStyle = '#07080b')
+    x += bw + r() * 30
+  }
+  ctx.fillStyle = '#0a0b0f'
+  ctx.fillRect(0, horizon, w, h - horizon)
+  // grain
+  const img = ctx.getImageData(0, 0, w, h)
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (r() - 0.5) * 34
+    img.data[i] += n
+    img.data[i + 1] += n
+    img.data[i + 2] += n
+  }
+  ctx.putImageData(img, 0, 0)
+  // vignette
+  const v = ctx.createRadialGradient(w / 2, h / 2, h * 0.35, w / 2, h / 2, h * 0.9)
+  v.addColorStop(0, 'rgba(0,0,0,0)')
+  v.addColorStop(1, 'rgba(0,0,0,0.75)')
+  ctx.fillStyle = v
+  ctx.fillRect(0, 0, w, h)
+  // camcorder stamp
+  ctx.font = `${Math.round(h * 0.032)}px monospace`
+  ctx.fillStyle = 'rgba(255,170,60,0.85)'
+  const hh = String(Math.floor(r() * 24)).padStart(2, '0')
+  const mm = String(Math.floor(r() * 60)).padStart(2, '0')
+  ctx.fillText(`${hh}:${mm}:${String(Math.floor(r() * 60)).padStart(2, '0')}   ${String(1 + Math.floor(r() * 12)).padStart(2, '0')}/${String(1 + Math.floor(r() * 28)).padStart(2, '0')}`, w * 0.05, h * 0.93)
+  ctx.fillStyle = 'rgba(255,60,60,0.9)'
+  ctx.beginPath()
+  ctx.arc(w * 0.92, h * 0.085, h * 0.012, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(255,255,255,0.8)'
+  ctx.fillText('REC', w * 0.935, h * 0.097)
+  return c
+}
+
 async function coverCanvas(bitmap: ImageBitmap | null, seed: string): Promise<OffscreenCanvas> {
   if (bitmap) {
     const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height))
@@ -319,23 +449,7 @@ async function coverCanvas(bitmap: ImageBitmap | null, seed: string): Promise<Of
     c.getContext('2d')!.drawImage(bitmap, 0, 0, c.width, c.height)
     return c
   }
-  const c = new OffscreenCanvas(960, 640)
-  const ctx = c.getContext('2d')!
-  const g = ctx.createLinearGradient(0, 0, 0, 640)
-  g.addColorStop(0, '#2a2f3a')
-  g.addColorStop(1, '#0e1016')
-  ctx.fillStyle = g
-  ctx.fillRect(0, 0, 960, 640)
-  const img = ctx.getImageData(0, 0, 960, 640)
-  const r = rng(seed)
-  for (let i = 0; i < img.data.length; i += 4) {
-    const n = (r() - 0.5) * 28
-    img.data[i] += n
-    img.data[i + 1] += n
-    img.data[i + 2] += n
-  }
-  ctx.putImageData(img, 0, 0)
-  return c
+  return generatedCover(seed)
 }
 
 interface Asset {
@@ -344,15 +458,15 @@ interface Asset {
 }
 
 /** The file a stage's clue is hidden in. A password page has none (the page itself is the stage). */
-async function stageAsset(chain: Chain, i: number, ctx: BuildContext, warnings: string[]): Promise<Asset | null> {
+export async function stageAsset(chain: Chain, i: number, ctx: BuildContext, warnings: string[]): Promise<Asset | null> {
   const s = chain.stages[i]
   const message = messageOf(chain, i)
-  const base = fileNameOf(chain, i).replace(/\.[^.]+$/, '')
+  const name = assetNameOf(chain, i)
   switch (s.kind) {
     case 'cipher': {
       const encoded = encodeAll(message, layersFor(s))
       const body = s.hint && CIPHER_HINT[s.cipher] ? `${encoded}\n\n(${CIPHER_HINT[s.cipher]})\n` : encoded + '\n'
-      return { name: `${base}.txt`, data: enc.encode(body) }
+      return { name, data: enc.encode(body) }
     }
     case 'image': {
       const canvas = await coverCanvas(s.coverPath ? await ctx.loadCover(s.coverPath) : null, s.id)
@@ -366,20 +480,20 @@ async function stageAsset(chain: Chain, i: number, ctx: BuildContext, warnings: 
       }
       let png = await pngOf(canvas)
       if (s.imageMethod !== 'lsb') png = pngAddText(png, 'Comment', message)
-      return { name: `${base}.png`, data: png }
+      return { name, data: png }
     }
     case 'audio':
-      return { name: `${base}.wav`, data: textToWav({ text: message.slice(0, 24) }).wav }
+      return { name, data: textToWav({ text: message.slice(0, 24) }).wav }
     case 'qr': {
       const canvas = document.createElement('canvas')
       drawQr(canvas, qrMatrix(message, 'M'), 768, { margin: 4, fg: '#000000', bg: '#ffffff', rounded: false })
       const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'))
-      return { name: `${base}.png`, data: new Uint8Array(await blob!.arrayBuffer()) }
+      return { name, data: new Uint8Array(await blob!.arrayBuffer()) }
     }
     case 'zip':
-      return { name: `${base}.zip`, data: await buildZip([{ name: 'read me.txt', data: enc.encode(message + '\n') }], s.word) }
+      return { name, data: await buildZip([{ name: 'read me.txt', data: enc.encode(message + '\n') }], s.word) }
     case 'folder':
-      return { name: `${base}.zip`, data: await buildZip(maze(s, message, safe(s.title || 'folder')).map((f) => ({ name: f.path, data: f.data }))) }
+      return { name: name.replace(/\.txt$/, '.zip'), data: await buildZip(maze(s, message, safe(s.title || 'folder')).map((f) => ({ name: f.path, data: f.data }))) }
     case 'gate':
       return null
   }
@@ -441,47 +555,74 @@ function finalePage(chain: Chain): string {
   return page('the end', body, chain.name)
 }
 
+/** The published site's files, with the site/ prefix removed (index.html at the root). */
+export const siteEntries = (files: OutFile[]) => files.filter((f) => f.path.startsWith('site/')).map((f) => ({ name: f.path.slice(5), data: f.data }))
+
 /**
- * Folder hunt:   START.txt, the stage files (a zip stage nests everything after it), the end.html
- * Website hunt:  START.txt, and site/ with one folder per stage (upload site/ anywhere static).
+ * Website hunt:  START.txt, site/ (what gets published), elsewhere/ (files for your own links)
+ * Folder hunt:   START.txt, the stage files (locked zips when lockAll; a zip stage nests the rest), the end
  */
 export async function buildChain(chain: Chain, ctx: BuildContext): Promise<BuildResult> {
   const files: OutFile[] = []
   const warnings: string[] = []
   const start = startNote(chain)
   for (const p of problems(chain)) warnings.push(p)
+  const elsewhere: string[] = []
+  const putElsewhere = async (i: number) => {
+    const asset = await stageAsset(chain, i, ctx, warnings)
+    if (asset) files.push({ path: `elsewhere/${asset.name}`, data: asset.data })
+    elsewhere.push(placementOf(chain, i))
+  }
 
   if (chain.mode === 'site') {
     files.push({ path: 'site/index.html', data: enc.encode(page('', '<p>There is nothing here.</p>', chain.name)) })
     for (let i = 0; i < chain.stages.length; i++) {
+      if (linked(chain.stages[i])) {
+        await putElsewhere(i)
+        continue
+      }
       const slug = slugOf(chain, i)
       const asset = await stageAsset(chain, i, ctx, warnings)
       if (asset) files.push({ path: `site/${slug}/${asset.name}`, data: asset.data })
       files.push({ path: `site/${slug}/index.html`, data: enc.encode(await stagePage(chain, i, asset)) })
     }
-    files.push({ path: `site/${finaleSlug(chain)}/index.html`, data: enc.encode(finalePage(chain)) })
+    if (!chain.finale.direct) files.push({ path: `site/${finaleSlug(chain)}/index.html`, data: enc.encode(finalePage(chain)) })
   } else {
     const build = async (from: number, into: OutFile[]): Promise<void> => {
       for (let i = from; i < chain.stages.length; i++) {
         const s = chain.stages[i]
         if (s.kind === 'gate') continue // already reported by problems()
+        if (linked(s)) {
+          await putElsewhere(i)
+          continue
+        }
         if (s.kind === 'zip') {
           const inner: OutFile[] = [{ path: 'read me.txt', data: enc.encode(messageOf(chain, i) + '\n') }]
           await build(i + 1, inner)
           into.push({ path: fileNameOf(chain, i), data: await buildZip(inner.map((f) => ({ name: f.path, data: f.data })), s.word) })
           return
         }
+        const lock = lockedAt(chain, i)
         if (s.kind === 'folder') {
-          into.push(...maze(s, messageOf(chain, i), safe(s.title || 'folder')))
+          const mazeFiles = maze(s, messageOf(chain, i), safe(s.title || 'folder'))
+          if (lock) into.push({ path: fileNameOf(chain, i), data: await buildZip(mazeFiles.map((f) => ({ name: f.path, data: f.data })), s.word) })
+          else into.push(...mazeFiles)
           continue
         }
         const asset = await stageAsset(chain, i, ctx, warnings)
-        if (asset) into.push({ path: asset.name, data: asset.data })
+        if (!asset) continue
+        if (lock) into.push({ path: fileNameOf(chain, i), data: await buildZip([{ name: asset.name, data: asset.data }], s.word) })
+        else into.push(asset ? { path: asset.name, data: asset.data } : asset)
       }
-      into.push({ path: finaleFile(chain), data: enc.encode(finalePage(chain)) })
+      if (!chain.finale.direct) {
+        const html = enc.encode(finalePage(chain))
+        if (finaleLocked(chain)) into.push({ path: finaleFile(chain), data: await buildZip([{ name: `${finaleBase(chain)}.html`, data: html }], chain.finale.word) })
+        else into.push({ path: finaleFile(chain), data: html })
+      }
     }
     await build(0, files)
   }
+  if (elsewhere.length) files.push({ path: 'elsewhere/PUT THESE ONLINE.txt', data: enc.encode(['These stages live at links of your own. Put them there before you hand out START.txt:', '', ...elsewhere.map((p) => '- ' + p), ''].join('\n')) })
   files.unshift({ path: 'START.txt', data: enc.encode(start) })
 
   const seen = new Set<string>()

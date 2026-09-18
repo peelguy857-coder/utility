@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, AudioLines, DoorClosed, Eye, FileText, Flag, Folder, FolderOutput, FolderTree, Globe, Image as ImageIcon, KeyRound, ListOrdered, Lock, Plus, Puzzle, QrCode, Shuffle, Trash2, Wand2 } from 'lucide-react'
-import { core, errorMessage } from '@/lib/bridge'
+import { ArrowDown, ArrowUp, AudioLines, CloudUpload, DoorClosed, ExternalLink, Eye, FileText, Flag, Folder, FolderOutput, FolderTree, Globe, Image as ImageIcon, KeyRound, Link2, ListOrdered, Lock, Plus, Puzzle, QrCode, Shuffle, Trash2, Wand2 } from 'lucide-react'
+import { core, errorMessage, useBackend } from '@/lib/bridge'
 import { baseName, cx, formatBytes, formatCount } from '@/lib/format'
 import { drawQr, qrMatrix } from '@/lib/qr'
 import { useToast } from '@/components/Toasts'
@@ -9,8 +9,13 @@ import { Badge, Button, CopyButton, Empty, Field, IconButton, Notice, NumberInpu
 import { autoDecode, decodeAll, encodeAll, stripZeroWidth, type Layer } from './lib/ciphers'
 import { lsbEmbed, lsbExtract, pngAddText, pngReadText } from './lib/stego'
 import { drawSpectrogram, textToWav, wavToSamples } from './lib/spectro'
-import { buildChain, emptyChain, gateBlob, gateOpen, howSolved, kindLabel, layersFor, makeStage, messageOf, needsWord, normalizeChain, pointer, preset, problems, randomSlug, randomWord, slugOf, STAGE_KINDS, startNote, storyboard, whereIs, wordLabel, youtubeId, type Chain, type CipherPreset, type Difficulty, type HuntMode, type Stage, type StageKind } from './lib/chain'
+import { buildChain, emptyChain, gateBlob, gateOpen, howSolved, kindLabel, layersFor, linked, lockedAt, makeStage, messageOf, needsWord, normalizeChain, placementOf, pointer, preset, problems, randomSlug, randomWord, siteEntries, slugOf, STAGE_KINDS, startNote, storyboard, whereIs, wordLabel, youtubeId, type Chain, type CipherPreset, type Difficulty, type HuntMode, type Stage, type StageKind, type Where } from './lib/chain'
+import { buildZip } from './lib/zip'
 import './ui.css'
+
+const TOKEN_PAGE = 'https://app.netlify.com/user/applications#personal-access-tokens'
+/** tests point the publishing calls at a mock server */
+const netlifyApi = () => (window as unknown as { __netlifyApi?: string }).__netlifyApi
 
 type Tab = 'build' | 'decode'
 type Selection = 'start' | 'finale' | string
@@ -52,20 +57,29 @@ const CIPHERS: Array<{ value: CipherPreset; label: string; blurb: string }> = [
   out.gateWrong = await gateOpen(await gateBlob('Lantern42', 'x'), 'nope').then(() => false, () => true)
 
   // the chain: every stage's hidden message must name the next stage's file and its password
-  const chain: Chain = { ...emptyChain(), name: 'Test', stages: preset('medium', 'files') }
+  const chain: Chain = { ...emptyChain(), name: 'Test', mode: 'files', stages: preset('medium', 'files') }
   const s = chain.stages
-  out.startPointsAtFirst = startNote(chain).includes(whereIs(chain, 0))
+  out.startPointsAtFirst = startNote(chain).includes('Start with "The photo.png"')
+  out.lockedAfterFirst = whereIs(chain, 1) === 'The recording.zip' && messageOf(chain, 0).includes(`Open "The recording.zip"\npassword: ${s[1].word}`)
   out.audioSpellsNextWord = pointer(chain, 1) === s[2].word && s[2].kind === 'zip'
-  out.zipMessageHasKeyword = messageOf(chain, 2).includes(`keyword: ${s[3].word}`) && messageOf(chain, 2).includes(whereIs(chain, 3))
-  out.lastPointsAtFinale = messageOf(chain, 4).includes('the end.html')
+  out.zipMessageHasKeyword = messageOf(chain, 2).includes(`keyword and zip password: ${s[3].word}`) && messageOf(chain, 2).includes('Open "The letter.zip"')
+  out.lastPointsAtLockedFinale = messageOf(chain, 4).includes(`Open "the end.zip"\npassword: ${chain.finale.word}`)
   const built = await buildChain(chain, { loadCover: async () => null })
   const names = built.files.map((f) => f.path)
-  out.builtFiles = names[0] === 'START.txt' && names.includes(whereIs(chain, 0)) && names.includes(whereIs(chain, 1)) && names.includes(whereIs(chain, 2)) && names.length === 4 // the zip swallows the rest
+  out.builtFiles = names[0] === 'START.txt' && names.includes('The photo.png') && names.includes('The recording.zip') && names.includes('Locked.zip') && names.length === 4 // the zip swallows the rest
+  const open: Chain = { ...chain, lockAll: false }
+  out.unlockedNames = whereIs(open, 1) === 'The recording.wav' && whereIs(open, 5) === 'the end.html' && !messageOf(open, 0).includes('password')
   const site: Chain = { ...chain, mode: 'site', siteUrl: 'https://hunt.test', stages: preset('medium', 'site') }
   const builtSite = await buildChain(site, { loadCover: async () => null })
   const siteNames = builtSite.files.map((f) => f.path)
   out.siteFiles = siteNames.includes('START.txt') && siteNames.includes(`site/${slugOf(site, 0)}/index.html`) && siteNames.includes(`site/${slugOf(site, 2)}/index.html`) && new TextDecoder().decode(builtSite.files.find((f) => f.path === 'START.txt')!.data).includes(`https://hunt.test/${slugOf(site, 0)}/`)
   out.siteWarnings = builtSite.warnings
+  // a stage at the maker's own link + a finale that is the video itself
+  const own: Chain = { ...site, stages: site.stages.map((st, i) => (i === 3 ? { ...st, where: 'link', link: 'https://pastebin.test/abc' } : st)), finale: { ...site.finale, direct: true, url: 'https://youtu.be/dQw4w9WgXcQ' } }
+  const builtOwn = await buildChain(own, { loadCover: async () => null })
+  const ownNames = builtOwn.files.map((f) => f.path)
+  out.ownLink = messageOf(own, 2).includes('Go to https://pastebin.test/abc') && ownNames.includes('elsewhere/The letter.txt') && ownNames.includes('elsewhere/PUT THESE ONLINE.txt') && !ownNames.some((n) => n.includes(own.stages[3].slug)) && messageOf(own, 4).includes('Go to https://youtu.be/dQw4w9WgXcQ') && !ownNames.some((n) => n.includes(own.finale.slug))
+  out.ownWarnings = builtOwn.warnings
   return out
 }
 
@@ -90,23 +104,82 @@ export default function MysteryMaker() {
 
 function Builder() {
   const toast = useToast()
+  const api = useBackend('mystery-maker')
   const [chain, setChain] = useState<Chain>(emptyChain)
+  const [token, setToken] = useState('')
   const [selected, setSelected] = useState<Selection>('start')
   const [busy, setBusy] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const saveTimer = useRef(0)
 
   useEffect(() => {
-    core.getUtilSettings<{ chain: Chain }>('mystery-maker').then((s) => {
+    core.getUtilSettings<{ chain: Chain; netlifyToken: string }>('mystery-maker').then((s) => {
       if (s.chain) setChain(normalizeChain(s.chain))
+      if (typeof s.netlifyToken === 'string') setToken(s.netlifyToken)
       setLoaded(true)
     })
   }, [])
   useEffect(() => {
     if (!loaded) return
     window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(() => core.setUtilSettings('mystery-maker', { chain }), 400)
-  }, [chain, loaded])
+    saveTimer.current = window.setTimeout(() => core.setUtilSettings('mystery-maker', { chain, netlifyToken: token }), 400)
+  }, [chain, token, loaded])
+
+  const loadCover = async (p: string) => {
+    try {
+      return await createImageBitmap(new Blob([(await core.readFile(p)) as BlobPart]))
+    } catch {
+      return null
+    }
+  }
+
+  /** Puts the site on the internet: makes a Netlify site the first time (so the address is known), then uploads the pages. */
+  const publish = async () => {
+    if (!token.trim()) {
+      toast.error('Paste a Netlify token first', { detail: 'It is free: Netlify → User settings → Applications → New access token.', action: { label: 'Get one', run: () => core.openExternal(TOKEN_PAGE) } })
+      return
+    }
+    setBusy('Getting an address…')
+    try {
+      let { siteId, siteUrl } = chain
+      if (!siteId) {
+        const site = (await api.invoke('netlifyCreate', { token, apiBase: netlifyApi() })) as { siteId: string; url: string }
+        siteId = site.siteId
+        siteUrl = site.url
+        setChain((c) => ({ ...c, siteId, siteUrl }))
+      }
+      const live = { ...chain, siteId, siteUrl }
+      setBusy('Building the pages…')
+      const result = await buildChain(live, { loadCover })
+      const zip = await buildZip(siteEntries(result.files))
+      setBusy('Uploading…')
+      await api.invoke('netlifyDeploy', { token, siteId, zip, apiBase: netlifyApi() })
+      for (const w of result.warnings) toast.warn(w)
+      const own = live.stages.filter(linked).length
+      toast.ok(`Live at ${siteUrl}`, {
+        detail: `Hand out the START note (Copy button on START.txt).${own ? ` ${own} stage${own > 1 ? 's' : ''} live at your own links: Export writes those files to an "elsewhere" folder for you to put online.` : ''}`,
+        action: { label: 'Open', run: () => core.openExternal(siteUrl) },
+      })
+    } catch (err) {
+      toast.error('Could not publish', { detail: errorMessage(err) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const takeDown = async () => {
+    if (!chain.siteId) return
+    setBusy('Deleting the site…')
+    try {
+      await api.invoke('netlifyDelete', { token, siteId: chain.siteId, apiBase: netlifyApi() })
+      setChain((c) => ({ ...c, siteId: '', siteUrl: '' }))
+      toast.ok('The site is gone', { detail: 'Publish again to get a new address.' })
+    } catch (err) {
+      toast.error('Could not delete the site', { detail: errorMessage(err) })
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const patch = (p: Partial<Chain>) => setChain((c) => ({ ...c, ...p }))
   const update = (id: string, p: Partial<Stage>) => setChain((c) => ({ ...c, stages: c.stages.map((s) => (s.id === id ? { ...s, ...p } : s)) }))
@@ -143,15 +216,7 @@ function Builder() {
     if (!folder) return
     setBusy('Building…')
     try {
-      const result = await buildChain(chain, {
-        loadCover: async (p) => {
-          try {
-            return await createImageBitmap(new Blob([(await core.readFile(p)) as BlobPart]))
-          } catch {
-            return null
-          }
-        },
-      })
+      const result = await buildChain(chain, { loadCover })
       const safeName = chain.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'hunt'
       const root = `${folder}\\${safeName}`
       let bytes = 0
@@ -162,8 +227,9 @@ function Builder() {
       }
       await core.writeFile(`${folder}\\${safeName} — SOLUTION.txt`, new TextEncoder().encode(result.solution))
       for (const w of result.warnings) toast.warn(w)
+      const own = result.files.some((f) => f.path.startsWith('elsewhere/')) ? ' The "elsewhere" folder holds the files for your own links; read PUT THESE ONLINE.txt.' : ''
       toast.ok(`Hunt written: ${formatCount(result.files.length, 'file')} · ${formatBytes(bytes)}`, {
-        detail: chain.mode === 'site' ? `Upload the "site" folder to ${chain.siteUrl || 'your website'}, then hand out START.txt. The SOLUTION.txt next to the folder is for you only.` : `Hand out the whole "${safeName}" folder; START.txt is the way in. The SOLUTION.txt next to it is for you only.`,
+        detail: chain.mode === 'site' ? `The "site" folder is what Publish uploads (or host it yourself at ${chain.siteUrl || 'your address'}). Hand out START.txt only. The SOLUTION.txt next to the folder is for you.${own}` : `Hand out the whole "${safeName}" folder; START.txt is the way in. The SOLUTION.txt next to it is for you only.${own}`,
         action: { label: 'Show', run: () => core.reveal(root) },
       })
     } catch (err) {
@@ -204,11 +270,45 @@ function Builder() {
               { value: 'site', label: 'Website', icon: Globe },
             ]}
           />
-          <p className="mm__hint">{chain.mode === 'files' ? 'Everything is files in one folder you hand out (or zip). Works offline.' : 'Every stage is a hidden page. You only hand out START.txt; the pages live at an address only the clues reveal.'}</p>
-          {chain.mode === 'site' && (
-            <Field label="Where the pages will live" hint="Every clue says “go to <this address>/…”, so it has to be known before you export. Free options: Netlify Drop (drag the exported site folder onto app.netlify.com/drop) or GitHub Pages.">
-              <TextInput value={chain.siteUrl} onChange={(siteUrl) => patch({ siteUrl })} mono placeholder="https://something.netlify.app" />
+          <p className="mm__hint">{chain.mode === 'files' ? 'Everything is files in one folder you hand out (or zip). Works offline.' : 'Every stage is a hidden page on the internet. You only hand out the START note; the pages live at addresses only the clues reveal, and any stage can live at a link of your own instead.'}</p>
+          {chain.mode === 'files' && (
+            <Field label="Lock every stage behind the previous clue" inline hint="Each stage sits in a password zip; the password is only in the stage before it. Nobody can skip ahead.">
+              <Toggle checked={chain.lockAll} onChange={(lockAll) => patch({ lockAll })} />
             </Field>
+          )}
+          {chain.mode === 'site' && (
+            <div className="mm__publish">
+              <Field label="Netlify token" hint={<>Free hosting; the token lets this app create and upload the site for you. <button type="button" className="mm__link" onClick={() => core.openExternal(TOKEN_PAGE)}>Get one <ExternalLink size={11} /></button></>}>
+                <TextInput value={token} onChange={setToken} mono type="password" placeholder="nfp_…" autoComplete="off" />
+              </Field>
+              {chain.siteUrl ? (
+                <div className="mm__live">
+                  <span className="mm__live-dot" />
+                  <span className="mm__live-url">{chain.siteUrl}</span>
+                  <IconButton icon={ExternalLink} label="Open the site" onClick={() => core.openExternal(chain.siteUrl)} />
+                </div>
+              ) : null}
+              {busy ? (
+                <Progress value={null} label={busy} />
+              ) : (
+                <Row gap={6}>
+                  <Button variant="primary" icon={CloudUpload} disabled={!chain.stages.length} onClick={publish}>
+                    {chain.siteId ? 'Publish again' : 'Publish to the internet'}
+                  </Button>
+                  {chain.siteId && (
+                    <Button variant="ghost" icon={Trash2} onClick={takeDown}>
+                      Take it down
+                    </Button>
+                  )}
+                </Row>
+              )}
+              <details className="mm__details">
+                <summary>Hosting it yourself instead</summary>
+                <Field label="Address the pages will live at" hint="Export writes a “site” folder; upload it anywhere static (GitHub Pages, Cloudflare Pages…). Every clue contains this address, so set it before exporting.">
+                  <TextInput value={chain.siteUrl} onChange={(siteUrl) => patch({ siteUrl, siteId: '' })} mono placeholder="https://something.netlify.app" />
+                </Field>
+              </details>
+            </div>
           )}
         </div>
 
@@ -230,8 +330,11 @@ function Builder() {
                 <span className="mm__num">{i + 1}</span>
                 <Icon size={15} />
                 <span className="mm__step-text">
-                  <span>{s.title || kindLabel(s.kind)}</span>
-                  <span>{needsWord(s) ? `${wordLabel(s)}: ${s.word}` : s.kind === 'audio' ? `spells ${pointer(chain, i)}` : kindLabel(s.kind)}</span>
+                  <span>
+                    {s.title || kindLabel(s.kind)}
+                    {linked(s) && <Link2 size={11} className="mm__step-link" />}
+                  </span>
+                  <span>{needsWord(s) || lockedAt(chain, i) ? `${lockedAt(chain, i) && !needsWord(s) ? 'password' : wordLabel(s)}: ${s.word}` : s.kind === 'audio' ? `spells ${pointer(chain, i)}` : kindLabel(s.kind)}</span>
                 </span>
               </button>
             )
@@ -242,7 +345,7 @@ function Builder() {
             </span>
             <span className="mm__step-text">
               <span>Finale</span>
-              <span>{youtubeId(chain.finale.url) ? 'unlisted YouTube video' : chain.finale.url ? chain.finale.url : 'a last page'}</span>
+              <span>{chain.finale.direct ? 'straight to the link' : youtubeId(chain.finale.url) ? 'a page with the video' : chain.finale.url ? chain.finale.url : 'a last page'}</span>
             </span>
           </button>
         </div>
@@ -272,10 +375,10 @@ function Builder() {
         </div>
         <div className="mm__export">
           {busy ? (
-            <Progress value={null} label={busy} />
+            chain.mode === 'files' && <Progress value={null} label={busy} />
           ) : (
-            <Button variant="primary" size="lg" block icon={FolderOutput} disabled={!chain.stages.length} onClick={exportChain}>
-              Export the hunt…
+            <Button variant={chain.mode === 'files' ? 'primary' : 'secondary'} size={chain.mode === 'files' ? 'lg' : 'md'} block icon={FolderOutput} disabled={!chain.stages.length || !!busy} onClick={exportChain}>
+              {chain.mode === 'files' ? 'Export the hunt…' : 'Export the files too…'}
             </Button>
           )}
         </div>
@@ -335,10 +438,12 @@ function FinaleEditor({ chain, onChange }: { chain: Chain; onChange: (p: Partial
         <Field label="Final words">
           <TextArea value={f.message} onChange={(message) => set({ message })} rows={3} mono={false} />
         </Field>
-        <Field label="Video or link" hint="An unlisted YouTube video is perfect: anyone with the link can watch, nobody can find it by searching. (A private video would block them.) The finale page embeds it.">
+        <Field label="Video or link" hint="An unlisted YouTube video is perfect: anyone with the link can watch, nobody can find it by searching. (A private video would block them.)">
           <TextInput value={f.url} onChange={(url) => set({ url })} mono placeholder="https://www.youtube.com/watch?v=…" />
         </Field>
-        {youtubeId(f.url) && <Badge tone="ok">YouTube video recognised · it will play inside the finale page</Badge>}
+        <Field label="Send them straight to the link" inline hint={f.direct ? 'The last clue is the link itself; no finale page.' : youtubeId(f.url) ? 'Off: a finale page shows your final words with the video playing inside it.' : 'Off: a finale page shows your final words and the link.'}>
+          <Toggle checked={f.direct} onChange={(direct) => set({ direct })} disabled={!f.url.trim()} />
+        </Field>
         {lastIsAudio && (
           <Field label="The word the last recording spells" hint="Because the last stage is a sound, the finale is found by this word.">
             <WordInput value={f.word} onChange={(word) => set({ word })} />
@@ -365,6 +470,8 @@ function StageEditor({ chain, stage, index, onChange, onMove, onRemove }: { chai
   const afterAudio = index > 0 && chain.stages[index - 1].kind === 'audio'
   const hidden = messageOf(chain, index)
   const isAudio = stage.kind === 'audio'
+  const own = linked(stage)
+  const locked = lockedAt(chain, index)
   return (
     <Panel
       title={
@@ -386,20 +493,46 @@ function StageEditor({ chain, stage, index, onChange, onMove, onRemove }: { chai
           <Field label="Title" hint={chain.mode === 'site' ? 'Shown on the page' : 'Becomes the file name'}>
             <TextInput value={stage.title} onChange={(title) => onChange({ title })} placeholder={kind.label} />
           </Field>
-          {needsWord(stage) && (
-            <Field label={stage.kind === 'cipher' ? 'Keyword' : 'Password'} hint={index === 0 ? 'START.txt tells the player this' : afterAudio ? 'The recording before spells this' : `Stage ${index} tells the player this`}>
+          {(needsWord(stage) || locked) && (
+            <Field label={stage.kind === 'cipher' && needsWord(stage) ? (locked ? 'Keyword and zip password' : 'Keyword') : 'Password'} hint={index === 0 ? 'START.txt tells the player this' : afterAudio ? 'The recording before spells this' : `Stage ${index} tells the player this`}>
               <WordInput value={stage.word} onChange={(word) => onChange({ word })} />
             </Field>
           )}
-          {chain.mode === 'site' && !afterAudio && (
-            <Field label="Address part" hint={`${chain.siteUrl.replace(/\/+$/, '') || '<your site>'}/${stage.slug}/`}>
+        </Row>
+        {stage.kind !== 'gate' && (
+          <Field label="Where it lives">
+            <Segmented<Where>
+              block
+              size="sm"
+              value={stage.where}
+              onChange={(where) => onChange({ where })}
+              options={[
+                { value: 'auto', label: chain.mode === 'site' ? 'On the hunt site (published for you)' : 'In the folder', icon: chain.mode === 'site' ? Globe : Folder },
+                { value: 'link', label: 'At a link of my own', icon: Link2 },
+              ]}
+            />
+          </Field>
+        )}
+        {own ? (
+          <Stack gap={8}>
+            <Field label="The link" hint="Make the place first (an unlisted video, a pastebin, a Google Doc, a Discord message, an image host…), paste its link here, then put the clue there.">
+              <TextInput value={stage.link} onChange={(link) => onChange({ link })} mono placeholder="https://…" />
+            </Field>
+            <Notice tone="info" icon={Link2}>
+              {index === 0 ? 'START.txt' : `Stage ${index}`} will send the player to this link. You put the clue there yourself: {placementOf(chain, index)}.{stage.kind === 'cipher' ? ' The text to paste is below.' : ' Export writes the file into an “elsewhere” folder.'}
+            </Notice>
+          </Stack>
+        ) : (
+          chain.mode === 'site' &&
+          !afterAudio && (
+            <Field label="Address part" hint={`${chain.siteUrl.replace(/\/+$/, '') || '<your site>'}/${stage.slug}/ — random, so nobody can guess their way to it`}>
               <Row gap={6}>
                 <TextInput value={stage.slug} onChange={(slug) => onChange({ slug: slug.replace(/[^a-z0-9-]/gi, '').toLowerCase() })} mono />
                 <IconButton icon={Shuffle} label="New random address" onClick={() => onChange({ slug: randomSlug() })} />
               </Row>
             </Field>
-          )}
-        </Row>
+          )
+        )}
 
         {!isAudio && (
           <Field label="Story line" hint="What they read once they crack it. The “go to…” part is added underneath by itself.">
@@ -444,7 +577,8 @@ function StageEditor({ chain, stage, index, onChange, onMove, onRemove }: { chai
           {isAudio ? <AudioPreview text={hidden} /> : stage.kind === 'qr' ? <QrPreview text={hidden} /> : stage.kind === 'cipher' ? <CipherPreview stage={stage} message={hidden} /> : null}
           {!isAudio && <TextArea value={hidden} readOnly rows={Math.min(6, hidden.split('\n').length + 1)} />}
           <p className="mm__hint">
-            <strong>How they get it:</strong> {howSolved(stage)}
+            <strong>How they get it:</strong> {locked ? `extract "${whereIs(chain, index)}" with the password "${stage.word}", then ` : ''}
+            {howSolved(stage)}
           </p>
         </div>
       </Stack>
@@ -461,7 +595,7 @@ function CipherPreview({ stage, message }: { stage: Stage; message: string }) {
     }
   }, [message, stage])
   return (
-    <Field label="What the player sees">
+    <Field label={<Row gap={8}>What the player sees <CopyButton text={encoded} label="Copy the cipher text" /></Row>}>
       <TextArea value={encoded} readOnly rows={3} />
     </Field>
   )
