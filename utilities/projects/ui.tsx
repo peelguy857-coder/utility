@@ -188,7 +188,7 @@ export default function Projects() {
                   <span className="projects__text">
                     <span className="projects__name">{p.name}</span>
                     <span className="projects__path" title={p.path}>
-                      {p.running && p.since ? `running ${formatDuration(clock - p.since)} · npm run ${p.runningScript ?? p.script}` : p.exists ? p.path : 'folder is missing'}
+                      {p.running && p.since ? `running ${formatDuration(Math.max(0, clock - p.since))} · npm run ${p.runningScript ?? p.script}` : p.exists ? p.path : 'folder is missing'}
                     </span>
                   </span>
                   {p.running ? (
