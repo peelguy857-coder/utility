@@ -1,8 +1,9 @@
-// Drives the whole thing the way Isaac would: Medium template → Publish (against a mock Netlify API
-// on loopback, which checks the token and keeps the uploaded zip) → one stage moved to "a link of my
-// own" → Export → the password page opened in a real window and unlocked → then the same hunt as a
-// folder, where every stage is a password zip verified with Python's zipfile. Engines and the chain
-// wiring are checked in-page via window.__mysteryTest.
+// Drives the whole thing the way Isaac would: Medium → connect Netlify (a mock API on loopback that
+// checks the token and keeps the uploaded zip) → Put it online → the note appears. Then, with the
+// advanced controls on: one puzzle moved to "a link of my own", the files exported, the password
+// page opened in a real window and unlocked, the site taken down. Then the same hunt as a folder,
+// where every puzzle is a password zip verified with Python's zipfile. Engines and the chain wiring
+// are checked in-page via window.__mysteryTest.
 const fs = require('node:fs')
 const http = require('node:http')
 const path = require('node:path')
@@ -46,6 +47,7 @@ function mockNetlify() {
 }
 
 const py = (script, ...args) => execFileSync('python', ['-c', script, ...args], { encoding: 'utf8', timeout: 30000 }).trim()
+const K = '.keepalive:not([hidden]) '
 
 module.exports = async (t) => {
   const outDir = path.dirname(t.shotPath('x'))
@@ -55,6 +57,7 @@ module.exports = async (t) => {
     if (k.endsWith('Warnings')) { if (v.length) throw new Error(`${k}: ` + v.join(' | ')); continue }
     if (v !== true) throw new Error(`engine check failed: ${k} = ${JSON.stringify(v)}`)
   }
+  const openMore = (which) => t.exec(`(() => { const d = [...document.querySelectorAll('${K}details.mm__more')][${which}]; if (!d) return false; d.open = true; return true })()`)
 
   const work = path.join(t.tmpDir(), 'mystery')
   fs.rmSync(work, { recursive: true, force: true })
@@ -62,22 +65,30 @@ module.exports = async (t) => {
   const live = await mockNetlify()
   try {
     await t.exec(`window.__netlifyApi = ${JSON.stringify(live.base)}`)
-    await t.setInput('.mm__name input', 'The Drive')
-    if (!(await t.clickText('Medium'))) throw new Error('no Medium template button')
+    await t.setInput(K + '.mm__name input', 'The Drive')
+    await t.setInput(K + 'input[placeholder^="https://www.youtube.com"]', 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+    if (!(await t.clickText('Medium'))) throw new Error('no Medium button')
     await t.sleep(500)
-    await t.capture('template')
+    await t.capture('simple')
+    await t.exec(`document.querySelector('${K}.mm__connect').scrollIntoView({ block: 'center' })`)
+    await t.sleep(300)
+    await t.capture('connect')
 
-    // ---- publish (website hunt is the default)
-    await t.setInput('.keepalive:not([hidden]) .mm__publish input[type=password]', TOKEN)
-    await t.sleep(500)
-    if (!(await t.clickText('Publish to the internet'))) throw new Error('no Publish button')
+    // ---- connect + put it online
+    await t.setInput(K + '.mm__connect input[type=password]', TOKEN)
+    await t.sleep(200)
+    if (!(await t.clickText('Connect'))) throw new Error('no Connect button')
+    await t.sleep(300)
+    if (!(await t.clickText('Put it online'))) throw new Error('no Put it online button')
     for (let i = 0; i < 80 && !live.state.deploys.length; i++) await t.sleep(250)
-    await t.sleep(1200)
+    await t.sleep(1500)
     if (!live.state.deploys.length) throw new Error('nothing was uploaded to the mock Netlify')
     if (live.state.badAuth) throw new Error('a request went out without the token')
-    const shown = await t.text('.keepalive:not([hidden]) .mm__live-url')
-    if (shown !== `${live.base}/live`) throw new Error('live address not shown: ' + shown)
-    await t.capture('published')
+    const note = await t.text(K + '.mm__give-note')
+    if (!note.includes(`Go to ${live.base}/live/`)) throw new Error('the note to hand out has no live link: ' + note)
+    await t.exec(`document.querySelector('${K}.mm__give').scrollIntoView({ block: 'center' })`)
+    await t.sleep(300)
+    await t.capture('online')
     const deployZip = path.join(outDir, 'mystery-deploy.zip')
     fs.writeFileSync(deployZip, live.state.deploys[0])
     const zipReport = py(
@@ -91,28 +102,31 @@ module.exports = async (t) => {
         'gates = [n for n in names if n.endswith("index.html") and b\'type="password"\' in z.read(n)]',
         'assert len(gates) == 1, gates',
         'assert b"Go to http" not in z.read(gates[0])',
+        'ends = [n for n in names if b"youtube.com/embed/dQw4w9WgXcQ" in z.read(n)]',
+        'assert len(ends) == 1, ends',
         'print("ok", len(names), " ".join(dirs))',
       ].join('\n'),
       deployZip,
     )
     if (!zipReport.startsWith('ok')) throw new Error('deploy zip: ' + zipReport)
-    const walk = await t.text('.keepalive:not([hidden]) .mm__hops')
-    if (!walk.includes(`Go to ${live.base}/live/`)) throw new Error('walkthrough does not use the live address')
 
-    // ---- one stage at a link of my own
-    await t.clickText('The letter')
+    // ---- advanced: one puzzle at a link of my own
+    await openMore(1)
+    await t.exec(`(() => { const d = [...document.querySelectorAll('${K}details.mm__more')][1]; const tg = [...d.querySelectorAll('input[type=checkbox], [role=switch], button')].find((el) => (el.closest('.field') || el.parentElement).textContent.includes('Advanced controls')); tg.click(); return !!tg })()`)
     await t.sleep(300)
-    if (!(await t.clickText('At a link of my own'))) throw new Error('no own-link option')
+    if (!(await t.clickText('The letter'))) throw new Error('no row for The letter')
+    await t.sleep(300)
+    if (!(await t.clickText('At a link of my own'))) throw new Error('no own-link option (advanced controls not on?)')
     await t.sleep(200)
-    await t.setInput('.keepalive:not([hidden]) input[placeholder="https://…"]', 'https://pastebin.test/abc')
+    await t.setInput(K + 'input[placeholder="https://…"]', 'https://pastebin.test/abc')
     await t.sleep(500)
-    await t.capture('own-link')
-    const walk2 = await t.text('.keepalive:not([hidden]) .mm__hops')
-    if (!walk2.includes('Go to https://pastebin.test/abc')) throw new Error('the previous stage does not point at the own link')
+    await t.capture('advanced')
+    const walk = await t.text(K + '.mm__hops')
+    if (!walk.includes('Go to https://pastebin.test/abc')) throw new Error('the previous puzzle does not point at the own link')
 
-    // ---- export the website hunt, then open its password page in a real window
+    // ---- export the files, then open the password page in a real window
     t.queuePick([work])
-    if (!(await t.clickText('Export the files too'))) throw new Error('no Export button')
+    if (!(await t.clickText('Export the files'))) throw new Error('no Export button')
     const solutionPath = path.join(work, 'The Drive — SOLUTION.txt')
     for (let i = 0; i < 120 && !fs.existsSync(solutionPath); i++) await t.sleep(250)
     await t.sleep(500)
@@ -122,7 +136,7 @@ module.exports = async (t) => {
     for (const f of ['site/index.html', 'elsewhere/The letter.txt', 'elsewhere/PUT THESE ONLINE.txt']) if (!fs.existsSync(path.join(root, f))) throw new Error('missing ' + f)
     const siteDir = path.join(root, 'site')
     const pages = fs.readdirSync(siteDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
-    if (pages.length !== 5) throw new Error('expected 4 stage pages + finale (the letter is elsewhere), got ' + pages.join(','))
+    if (pages.length !== 5) throw new Error('expected 4 puzzle pages + the end (the letter is elsewhere), got ' + pages.join(','))
     const solution = fs.readFileSync(solutionPath, 'utf8')
     const gateDir = pages.find((p) => fs.readFileSync(path.join(siteDir, p, 'index.html'), 'utf8').includes('type="password"'))
     const gatePassword = /Locked[^\n]*\n[^\n]*\n[^\n]*\n\s+key:\s+password (\S+)/.exec(solution)?.[1]
@@ -135,8 +149,7 @@ module.exports = async (t) => {
       if (wrong !== 'No.|') throw new Error('gate accepted a wrong password: ' + wrong)
       const right = await w.webContents.executeJavaScript(`(async () => { document.getElementById('p').value = ${JSON.stringify(gatePassword.toLowerCase())}; document.getElementById('b').click(); await new Promise(r => setTimeout(r, 2500)); return document.getElementById('out').textContent })()`)
       if (!right.includes('Go to https://pastebin.test/abc')) throw new Error('gate did not reveal the next link: ' + right)
-      const img = await w.capturePage()
-      fs.writeFileSync(path.join(outDir, '21-mystery-maker--gate-page.png'), img.toPNG())
+      fs.writeFileSync(path.join(outDir, '21-mystery-maker--gate-page.png'), (await w.capturePage()).toPNG())
     } finally {
       w.destroy()
     }
@@ -146,22 +159,22 @@ module.exports = async (t) => {
     await t.clickText('Take it down')
     for (let i = 0; i < 40 && !live.state.deleted; i++) await t.sleep(250)
     if (!live.state.deleted) throw new Error('site was not deleted')
+    await t.sleep(300)
+    if (await t.text(K + '.mm__give-note')) throw new Error('the note is still shown after taking the site down')
   } finally {
     live.server.close()
   }
 
-  // ---- the same hunt as a folder: every stage locked behind the previous clue
-  await t.clickText('Folder of files')
+  // ---- the same hunt as a folder: every puzzle locked behind the one before it
+  await t.clickText('A folder of files')
   await t.sleep(300)
-  await t.clickText('The letter')
-  await t.sleep(300)
-  await t.clickText('In the folder')
+  if (!(await t.clickText('In the folder'))) throw new Error('no In the folder option')
   await t.sleep(500)
-  await t.capture('folder-locked')
+  await t.capture('folder')
   const work3 = path.join(work, 'folder')
   fs.mkdirSync(work3, { recursive: true })
   t.queuePick([work3])
-  await t.clickText('Export the hunt')
+  if (!(await t.clickText('Make the folder'))) throw new Error('no Make the folder button')
   const sol3 = path.join(work3, 'The Drive — SOLUTION.txt')
   for (let i = 0; i < 120 && !fs.existsSync(sol3); i++) await t.sleep(250)
   await t.sleep(500)
@@ -187,8 +200,8 @@ module.exports = async (t) => {
       'note = big.read("read me.txt").decode(); assert \'Open "The letter.zip"\' in note and ("keyword and zip password: " + k_letter) in note, note',
       'letter = zipfile.ZipFile(io.BytesIO(big.read("The letter.zip"))); assert locked(letter); letter.setpassword(k_letter.encode()); assert letter.namelist() == ["The letter.txt"]',
       'mark = zipfile.ZipFile(io.BytesIO(big.read("The mark.zip"))); assert locked(mark); mark.setpassword(k_mark.encode()); assert mark.namelist() == ["The mark.png"]',
-      'end = zipfile.ZipFile(io.BytesIO(big.read("the end.zip"))); assert locked(end); end.setpassword(k_end.encode()); assert end.namelist() == ["the end.html"]; assert b"<html" in end.read("the end.html")',
-      'print("ok every stage locked")',
+      'end = zipfile.ZipFile(io.BytesIO(big.read("the end.zip"))); assert locked(end); end.setpassword(k_end.encode()); assert end.namelist() == ["the end.html"]; assert b"youtube.com/embed/dQw4w9WgXcQ" in end.read("the end.html")',
+      'print("ok every puzzle locked")',
     ].join('\n'),
     root3,
     ...keys,
@@ -200,13 +213,13 @@ module.exports = async (t) => {
   await t.clickText('Decode anything')
   await t.sleep(300)
   t.queuePick([path.join(root3, 'The photo.png')])
-  await t.exec(`document.querySelectorAll('.keepalive:not([hidden]) .mm__decode .dropzone button')[0].click()`)
+  await t.exec(`document.querySelectorAll('${K}.mm__decode .dropzone button')[0].click()`)
   await t.sleep(1200)
-  const found = await t.text('.keepalive:not([hidden]) .mm__decode')
+  const found = await t.text(K + '.mm__decode')
   if (!found.includes('Open "The recording.zip"') || !found.includes(`password: ${keys[0]}`)) throw new Error('decoder did not find the LSB pointer: ' + found.slice(0, 300))
-  await t.setInput('.keepalive:not([hidden]) .mm__decode textarea', 'Wkh sdvvzrug lv PLGQLJKW')
+  await t.setInput(K + '.mm__decode textarea', 'Wkh sdvvzrug lv PLGQLJKW')
   await t.sleep(400)
-  const guess = await t.text('.keepalive:not([hidden]) .mm__guess.is-best')
+  const guess = await t.text(K + '.mm__guess.is-best')
   if (!/the password is midnight/i.test(guess)) throw new Error('best guess wrong: ' + guess)
   await t.capture('decode')
 }

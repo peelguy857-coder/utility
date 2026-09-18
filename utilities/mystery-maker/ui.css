@@ -1,61 +1,26 @@
+/* Mystery Maker: one column, three numbered steps, everything else folded away. */
 .mm {
-  display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-@media (max-width: 1040px) {
-  .mm {
-    grid-template-columns: 1fr;
-  }
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 880px;
 }
 .mm__name input {
   width: 100%;
   border: 0;
   outline: 0;
   background: transparent;
-  font: 600 14px var(--font-display);
+  font: 600 20px var(--font-display);
   color: var(--text);
+  padding: 2px 0;
 }
 .mm__name input::placeholder {
   color: var(--text-faint);
 }
-
-.mm__steps {
-  display: flex;
-  flex-direction: column;
-  padding: 6px;
-}
-.mm__step {
-  position: relative;
-  display: flex;
+.mm__stepno {
+  display: inline-flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text);
-  text-align: left;
-}
-.mm__step:hover {
-  background: var(--bg-elev);
-}
-.mm__step.is-selected {
-  background: var(--bg-elev-2);
-}
-.mm__step.is-inside {
-  margin-left: 18px;
-  width: calc(100% - 18px);
-}
-.mm__step.is-inside::before {
-  content: '';
-  position: absolute;
-  left: -12px;
-  top: 0;
-  bottom: 0;
-  border-left: 2px dotted var(--line-strong);
 }
 .mm__num {
   width: 20px;
@@ -68,28 +33,11 @@
   color: var(--tint);
   font: 600 11px var(--font-mono);
 }
-.mm__step-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.mm__step-text span:first-child {
-  font-weight: 500;
-}
-.mm__step-text span:last-child {
-  font-size: 11.5px;
+.mm__hint {
+  margin: 0;
+  font-size: 12px;
   color: var(--text-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-
-.mm__add {
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--line);
-}
-.mm__add-label,
 .mm__label {
   margin-bottom: 8px;
   font-size: 11px;
@@ -98,62 +46,236 @@
   text-transform: uppercase;
   color: var(--text-faint);
 }
-.mm__add-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5px;
+.mm__issues {
+  margin: 0;
+  padding-left: 18px;
 }
-.mm__add-btn {
+.mm__issues li + li {
+  margin-top: 4px;
+}
+
+/* ---- puzzle rows */
+.mm__rows {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+}
+.mm__row {
+  border-radius: var(--radius-sm);
+}
+.mm__row.is-open {
+  background: var(--bg-elev);
+}
+.mm__row.is-inside {
+  margin-left: 18px;
+  border-left: 2px dotted var(--line-strong);
+}
+.mm__row-head {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
+  gap: 10px;
+  padding: 8px 10px;
   border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+}
+.mm__row-head:hover {
+  background: var(--bg-elev);
+}
+.mm__chev {
+  color: var(--text-faint);
+  flex: none;
+}
+.mm__row-title {
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mm__row-kind {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mm__row-tools {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+  opacity: 0.55;
+}
+.mm__row-head:hover .mm__row-tools,
+.mm__row.is-open .mm__row-tools {
+  opacity: 1;
+}
+.mm__row-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 14px 14px 44px;
+}
+.mm__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--line);
+}
+.mm__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   background: var(--bg-inset);
   color: var(--text-dim);
   font-size: 12px;
-  text-align: left;
 }
 .mm__add-btn:hover {
   color: var(--text);
   border-color: var(--line-strong);
 }
-.mm__export {
-  padding: 12px;
-  border-top: 1px solid var(--line);
-}
 
-.mm__editor-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+/* ---- connect & publish */
+.mm__connect {
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
 }
-.mm__layers {
+.mm__connect-title {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.mm__connect-steps {
+  margin: 0;
+  padding-left: 20px;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+.mm__connect-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.mm__connect-steps .input {
+  flex: 1;
+  min-width: 220px;
+}
+.mm__connected {
+  font-size: 12px;
+  color: var(--text-faint);
+  align-self: center;
+}
+.mm__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+.mm__link:hover {
+  text-decoration: underline;
+}
+.mm__give {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--accent-text);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+.mm__give-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 600;
+}
+.mm__give-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font: 13px/1.5 var(--font-mono);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.mm__live {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  font: 12.5px var(--font-mono);
+  color: var(--text-dim);
+}
+.mm__live-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ok, #4ade80);
+  box-shadow: 0 0 8px var(--ok, #4ade80);
+}
+.mm__live-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+/* ---- folded sections */
+.mm__more {
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-elev);
+}
+.mm__more summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.mm__more[open] summary {
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+/* ---- previews */
+.mm__reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-inset);
 }
-.mm__layer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.mm__reveal .mm__label {
+  margin-bottom: 0;
 }
-.mm__layer-name {
-  width: 120px;
-  flex: none;
-  font-size: 13px;
-}
-.mm__layer .input {
-  max-width: 260px;
-}
-.mm__hint {
-  font-size: 12px;
-  color: var(--text-faint);
+.mm__qr {
+  width: 140px;
+  height: 140px;
+  border-radius: 4px;
+  image-rendering: pixelated;
 }
 .mm__spectro {
   display: flex;
@@ -171,96 +293,6 @@
 .mm__spectro.is-empty canvas {
   opacity: 0.4;
 }
-
-.mm__decode {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-@media (max-width: 1040px) {
-  .mm__decode {
-    grid-template-columns: 1fr;
-  }
-}
-.mm__guesses {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 420px;
-  overflow: auto;
-}
-.mm__guess {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  background: var(--bg-inset);
-}
-.mm__guess.is-best {
-  outline: 1px solid var(--accent-text);
-}
-.mm__guess-method {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-.mm__guess code {
-  background: none;
-  padding: 0;
-  color: var(--text);
-  white-space: pre-wrap;
-  word-break: break-word;
-  user-select: text;
-}
-
-/* ---- chain builder (v2) */
-.mm__mode {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid var(--line);
-}
-.mm__mode .mm__hint {
-  margin: 0;
-}
-.mm__num--start,
-.mm__num--end {
-  background: var(--bg-elev-2);
-  color: var(--text-dim);
-}
-.mm__issues {
-  margin: 0;
-  padding-left: 18px;
-}
-.mm__issues li + li {
-  margin-top: 4px;
-}
-.mm__reveal {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-inset);
-}
-.mm__reveal .mm__label {
-  margin-bottom: 0;
-}
-.mm__reveal .mm__hint {
-  margin: 0;
-}
-.mm__qr {
-  width: 140px;
-  height: 140px;
-  border-radius: 4px;
-  image-rendering: pixelated;
-}
 .mm__hops {
   margin: 0;
   padding: 0;
@@ -268,7 +300,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  counter-reset: hop;
 }
 .mm__hop {
   position: relative;
@@ -313,62 +344,48 @@
   color: var(--text-faint);
 }
 
-/* ---- publishing & own links (v3) */
-.mm__publish {
+/* ---- decoder */
+.mm__decode {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1040px) {
+  .mm__decode {
+    grid-template-columns: 1fr;
+  }
+}
+.mm__guesses {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 4px;
+  gap: 4px;
+  max-height: 420px;
+  overflow: auto;
 }
-.mm__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent-text);
-  font: inherit;
-  cursor: pointer;
-}
-.mm__link:hover {
-  text-decoration: underline;
-}
-.mm__live {
+.mm__guess {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 2px;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   background: var(--bg-inset);
-  font: 12.5px var(--font-mono);
 }
-.mm__live-dot {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--ok, #4ade80);
-  box-shadow: 0 0 8px var(--ok, #4ade80);
+.mm__guess.is-best {
+  outline: 1px solid var(--accent-text);
 }
-.mm__live-url {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.mm__guess-method {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.mm__guess code {
+  background: none;
+  padding: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
   user-select: text;
-}
-.mm__details summary {
-  font-size: 12px;
-  color: var(--text-faint);
-  cursor: pointer;
-}
-.mm__details[open] summary {
-  margin-bottom: 8px;
-}
-.mm__step-link {
-  margin-left: 6px;
-  vertical-align: -1px;
-  color: var(--text-faint);
 }

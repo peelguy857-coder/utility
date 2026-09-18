@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, AudioLines, CloudUpload, DoorClosed, ExternalLink, Eye, FileText, Flag, Folder, FolderOutput, FolderTree, Globe, Image as ImageIcon, KeyRound, Link2, ListOrdered, Lock, Plus, Puzzle, QrCode, Shuffle, Trash2, Wand2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, AudioLines, ChevronDown, ChevronRight, CloudUpload, DoorClosed, ExternalLink, Eye, Flag, Folder, FolderOutput, FolderTree, Globe, Image as ImageIcon, KeyRound, Link2, Lock, Plus, Puzzle, QrCode, Shuffle, Trash2, Wand2 } from 'lucide-react'
 import { core, errorMessage, useBackend } from '@/lib/bridge'
 import { baseName, cx, formatBytes, formatCount } from '@/lib/format'
 import { drawQr, qrMatrix } from '@/lib/qr'
@@ -9,23 +9,27 @@ import { Badge, Button, CopyButton, Empty, Field, IconButton, Notice, NumberInpu
 import { autoDecode, decodeAll, encodeAll, stripZeroWidth, type Layer } from './lib/ciphers'
 import { lsbEmbed, lsbExtract, pngAddText, pngReadText } from './lib/stego'
 import { drawSpectrogram, textToWav, wavToSamples } from './lib/spectro'
-import { buildChain, emptyChain, gateBlob, gateOpen, howSolved, kindLabel, layersFor, linked, lockedAt, makeStage, messageOf, needsWord, normalizeChain, placementOf, pointer, preset, problems, randomSlug, randomWord, siteEntries, slugOf, STAGE_KINDS, startNote, storyboard, whereIs, wordLabel, youtubeId, type Chain, type CipherPreset, type Difficulty, type HuntMode, type Stage, type StageKind, type Where } from './lib/chain'
+import { buildChain, emptyChain, gateBlob, gateOpen, howSolved, kindLabel, layersFor, linked, lockedAt, makeStage, messageOf, needsWord, normalizeChain, placementOf, pointer, preset, problems, randomSlug, randomWord, siteEntries, slugOf, STAGE_KINDS, startNote, storyboard, whereIs, youtubeId, type Chain, type CipherPreset, type Difficulty, type HuntMode, type Stage, type StageKind, type Where } from './lib/chain'
 import { buildZip } from './lib/zip'
 import './ui.css'
+
+type Tab = 'build' | 'decode'
 
 const TOKEN_PAGE = 'https://app.netlify.com/user/applications#personal-access-tokens'
 /** tests point the publishing calls at a mock server */
 const netlifyApi = () => (window as unknown as { __netlifyApi?: string }).__netlifyApi
 
-type Tab = 'build' | 'decode'
-type Selection = 'start' | 'finale' | string
-
-const ICONS: Record<StageKind, typeof FileText> = { cipher: KeyRound, image: ImageIcon, audio: AudioLines, zip: Lock, gate: DoorClosed, qr: QrCode, folder: FolderTree }
+const ICONS: Record<StageKind, typeof Flag> = { cipher: KeyRound, image: ImageIcon, audio: AudioLines, zip: Lock, gate: DoorClosed, qr: QrCode, folder: FolderTree }
+const LEVELS: Array<{ level: Difficulty; label: string; blurb: string }> = [
+  { level: 'easy', label: 'Easy', blurb: 'a coded note, a picture, a locked file' },
+  { level: 'medium', label: 'Medium', blurb: 'a picture, a sound, a password, a keyword cipher, a QR code' },
+  { level: 'hard', label: 'Hard', blurb: 'eight puzzles, three-layer ciphers, a maze of junk files' },
+]
 const CIPHERS: Array<{ value: CipherPreset; label: string; blurb: string }> = [
   { value: 'caesar', label: 'Caesar shift', blurb: 'Letters shifted along the alphabet. Easy: any online tool cracks it.' },
   { value: 'base64', label: 'Base64', blurb: 'Looks like gibberish; decoders everywhere. Easy.' },
   { value: 'morse', label: 'Morse', blurb: 'Dots and dashes. Easy but slow.' },
-  { value: 'vigenere', label: 'Vigenère + keyword', blurb: 'Unbreakable without the keyword; the previous stage tells it. Medium.' },
+  { value: 'vigenere', label: 'Vigenère + keyword', blurb: 'Unbreakable without the keyword; the previous puzzle tells it. Medium.' },
   { value: 'invisible', label: 'Invisible ink', blurb: 'Zero-width characters hidden inside an innocent sentence. Hard to even notice.' },
   { value: 'mix', label: 'Three layers', blurb: 'Reversed, Base64, then Vigenère with the keyword. Hard.' },
 ]
@@ -102,91 +106,44 @@ export default function MysteryMaker() {
 
 // ---------------------------------------------------------------- builder
 
+interface Saved {
+  chain: Chain
+  netlifyToken: string
+  advanced: boolean
+}
+
 function Builder() {
   const toast = useToast()
   const api = useBackend('mystery-maker')
   const [chain, setChain] = useState<Chain>(emptyChain)
   const [token, setToken] = useState('')
-  const [selected, setSelected] = useState<Selection>('start')
+  const [draft, setDraft] = useState('')
+  const [advanced, setAdvanced] = useState(false)
+  const [open, setOpen] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const saveTimer = useRef(0)
 
   useEffect(() => {
-    core.getUtilSettings<{ chain: Chain; netlifyToken: string }>('mystery-maker').then((s) => {
+    core.getUtilSettings<Saved>('mystery-maker').then((s) => {
       if (s.chain) setChain(normalizeChain(s.chain))
       if (typeof s.netlifyToken === 'string') setToken(s.netlifyToken)
+      if (typeof s.advanced === 'boolean') setAdvanced(s.advanced)
       setLoaded(true)
     })
   }, [])
   useEffect(() => {
     if (!loaded) return
     window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(() => core.setUtilSettings('mystery-maker', { chain, netlifyToken: token }), 400)
-  }, [chain, token, loaded])
-
-  const loadCover = async (p: string) => {
-    try {
-      return await createImageBitmap(new Blob([(await core.readFile(p)) as BlobPart]))
-    } catch {
-      return null
-    }
-  }
-
-  /** Puts the site on the internet: makes a Netlify site the first time (so the address is known), then uploads the pages. */
-  const publish = async () => {
-    if (!token.trim()) {
-      toast.error('Paste a Netlify token first', { detail: 'It is free: Netlify → User settings → Applications → New access token.', action: { label: 'Get one', run: () => core.openExternal(TOKEN_PAGE) } })
-      return
-    }
-    setBusy('Getting an address…')
-    try {
-      let { siteId, siteUrl } = chain
-      if (!siteId) {
-        const site = (await api.invoke('netlifyCreate', { token, apiBase: netlifyApi() })) as { siteId: string; url: string }
-        siteId = site.siteId
-        siteUrl = site.url
-        setChain((c) => ({ ...c, siteId, siteUrl }))
-      }
-      const live = { ...chain, siteId, siteUrl }
-      setBusy('Building the pages…')
-      const result = await buildChain(live, { loadCover })
-      const zip = await buildZip(siteEntries(result.files))
-      setBusy('Uploading…')
-      await api.invoke('netlifyDeploy', { token, siteId, zip, apiBase: netlifyApi() })
-      for (const w of result.warnings) toast.warn(w)
-      const own = live.stages.filter(linked).length
-      toast.ok(`Live at ${siteUrl}`, {
-        detail: `Hand out the START note (Copy button on START.txt).${own ? ` ${own} stage${own > 1 ? 's' : ''} live at your own links: Export writes those files to an "elsewhere" folder for you to put online.` : ''}`,
-        action: { label: 'Open', run: () => core.openExternal(siteUrl) },
-      })
-    } catch (err) {
-      toast.error('Could not publish', { detail: errorMessage(err) })
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const takeDown = async () => {
-    if (!chain.siteId) return
-    setBusy('Deleting the site…')
-    try {
-      await api.invoke('netlifyDelete', { token, siteId: chain.siteId, apiBase: netlifyApi() })
-      setChain((c) => ({ ...c, siteId: '', siteUrl: '' }))
-      toast.ok('The site is gone', { detail: 'Publish again to get a new address.' })
-    } catch (err) {
-      toast.error('Could not delete the site', { detail: errorMessage(err) })
-    } finally {
-      setBusy(null)
-    }
-  }
+    saveTimer.current = window.setTimeout(() => core.setUtilSettings<Saved>('mystery-maker', { chain, netlifyToken: token, advanced }), 400)
+  }, [chain, token, advanced, loaded])
 
   const patch = (p: Partial<Chain>) => setChain((c) => ({ ...c, ...p }))
   const update = (id: string, p: Partial<Stage>) => setChain((c) => ({ ...c, stages: c.stages.map((s) => (s.id === id ? { ...s, ...p } : s)) }))
   const add = (kind: StageKind) => {
     const stage = makeStage(kind)
     setChain((c) => ({ ...c, stages: [...c.stages, stage] }))
-    setSelected(stage.id)
+    setOpen(stage.id)
   }
   const move = (id: string, dir: -1 | 1) =>
     setChain((c) => {
@@ -199,20 +156,70 @@ function Builder() {
     })
   const remove = (id: string) => {
     setChain((c) => ({ ...c, stages: c.stages.filter((s) => s.id !== id) }))
-    setSelected('start')
+    setOpen((o) => (o === id ? null : o))
   }
   const setMode = (mode: HuntMode) =>
     setChain((c) => ({ ...c, mode, stages: c.stages.map((s) => (mode === 'files' && s.kind === 'gate' ? { ...s, kind: 'zip' } : mode === 'site' && s.kind === 'zip' ? { ...s, kind: 'gate' } : s)) }))
   const useTemplate = (level: Difficulty) => {
-    const stages = preset(level, chain.mode)
-    setChain((c) => ({ ...c, stages }))
-    setSelected('start')
+    setChain((c) => ({ ...c, stages: preset(level, c.mode) }))
+    setOpen(null)
   }
 
   const issues = useMemo(() => problems(chain), [chain])
+  const connected = token.trim().length > 0
+  const online = chain.mode === 'site' && !!chain.siteId && !!chain.siteUrl
+
+  const loadCover = async (p: string) => {
+    try {
+      return await createImageBitmap(new Blob([(await core.readFile(p)) as BlobPart]))
+    } catch {
+      return null
+    }
+  }
+
+  /** Puts the site on the internet: makes a Netlify site the first time (so the address is known), then uploads the pages. */
+  const publish = async () => {
+    setBusy('Getting an address…')
+    try {
+      let { siteId, siteUrl } = chain
+      if (!siteId) {
+        const site = (await api.invoke('netlifyCreate', { token, apiBase: netlifyApi() })) as { siteId: string; url: string }
+        siteId = site.siteId
+        siteUrl = site.url
+        setChain((c) => ({ ...c, siteId, siteUrl }))
+      }
+      const live = { ...chain, siteId, siteUrl }
+      setBusy('Building the puzzles…')
+      const result = await buildChain(live, { loadCover })
+      const zip = await buildZip(siteEntries(result.files))
+      setBusy('Uploading…')
+      await api.invoke('netlifyDeploy', { token, siteId, zip, apiBase: netlifyApi() })
+      for (const w of result.warnings) toast.warn(w)
+      const own = live.stages.filter(linked).length
+      toast.ok('It is online', { detail: `Give out the note below.${own ? ` ${own} puzzle${own > 1 ? 's' : ''} live at your own links: "Export the files" writes those to an "elsewhere" folder for you to put online.` : ''}`, action: { label: 'Open', run: () => core.openExternal(siteUrl) } })
+    } catch (err) {
+      toast.error('Could not put it online', { detail: errorMessage(err) })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const takeDown = async () => {
+    if (!chain.siteId) return
+    setBusy('Taking it down…')
+    try {
+      await api.invoke('netlifyDelete', { token, siteId: chain.siteId, apiBase: netlifyApi() })
+      setChain((c) => ({ ...c, siteId: '', siteUrl: '' }))
+      toast.ok('It is gone', { detail: 'Put it online again whenever you like; it gets a new address.' })
+    } catch (err) {
+      toast.error('Could not take it down', { detail: errorMessage(err) })
+    } finally {
+      setBusy(null)
+    }
+  }
 
   const exportChain = async () => {
-    const folder = await core.pickFolder({ title: 'Where should the hunt be written?' })
+    const folder = await core.pickFolder({ title: 'Where should the files be written?' })
     if (!folder) return
     setBusy('Building…')
     try {
@@ -228,229 +235,229 @@ function Builder() {
       await core.writeFile(`${folder}\\${safeName} — SOLUTION.txt`, new TextEncoder().encode(result.solution))
       for (const w of result.warnings) toast.warn(w)
       const own = result.files.some((f) => f.path.startsWith('elsewhere/')) ? ' The "elsewhere" folder holds the files for your own links; read PUT THESE ONLINE.txt.' : ''
-      toast.ok(`Hunt written: ${formatCount(result.files.length, 'file')} · ${formatBytes(bytes)}`, {
-        detail: chain.mode === 'site' ? `The "site" folder is what Publish uploads (or host it yourself at ${chain.siteUrl || 'your address'}). Hand out START.txt only. The SOLUTION.txt next to the folder is for you.${own}` : `Hand out the whole "${safeName}" folder; START.txt is the way in. The SOLUTION.txt next to it is for you only.${own}`,
+      toast.ok(`Files written: ${formatCount(result.files.length, 'file')} · ${formatBytes(bytes)}`, {
+        detail: chain.mode === 'site' ? `The "site" folder is what goes online. Hand out START.txt only. The SOLUTION.txt next to the folder is for you.${own}` : `Hand out the whole "${safeName}" folder; START.txt is the way in. The SOLUTION.txt next to it is for you only.${own}`,
         action: { label: 'Show', run: () => core.reveal(root) },
       })
     } catch (err) {
-      toast.error('Could not build the hunt', { detail: errorMessage(err) })
+      toast.error('Could not build the files', { detail: errorMessage(err) })
     } finally {
       setBusy(null)
     }
   }
 
-  const current = chain.stages.find((s) => s.id === selected) ?? null
   const zipIndex = chain.mode === 'files' ? chain.stages.findIndex((s) => s.kind === 'zip') : -1
 
   return (
     <div className="mm">
+      <div className="mm__name">
+        <input value={chain.name} onChange={(e) => patch({ name: e.target.value })} placeholder="Name of the hunt" aria-label="Hunt name" />
+      </div>
+
+      <Panel title={<Step n={1}>Where it ends</Step>} hint="Paste an unlisted YouTube video: anyone with the link can watch it, nobody can find it. Any link works.">
+        <Stack gap={8}>
+          <TextInput value={chain.finale.url} onChange={(url) => patch({ finale: { ...chain.finale, url } })} mono placeholder="https://www.youtube.com/watch?v=…" />
+          {youtubeId(chain.finale.url) ? <Badge tone="ok">YouTube video · it plays on the last page</Badge> : chain.finale.url.trim() ? <Badge tone="info">the last page links to it</Badge> : null}
+        </Stack>
+      </Panel>
+
       <Panel
-        flush
-        title={
-          <span className="mm__name">
-            <input value={chain.name} onChange={(e) => patch({ name: e.target.value })} placeholder="Name of the hunt" aria-label="Hunt name" />
-          </span>
-        }
+        title={<Step n={2}>The puzzles</Step>}
+        hint="Each puzzle hides the way to the next one. You never write the “go to…” parts yourself."
         actions={
-          chain.stages.length > 0 && (
-            <Button size="sm" variant="ghost" icon={Trash2} onClick={() => { setChain((c) => ({ ...emptyChain(), name: c.name, mode: c.mode, siteUrl: c.siteUrl })); setSelected('start') }}>
-              Clear
-            </Button>
-          )
+          <Row gap={4}>
+            {LEVELS.map((l) => (
+              <Button key={l.level} size="sm" variant="ghost" icon={Wand2} title={l.blurb} onClick={() => useTemplate(l.level)}>
+                {l.label}
+              </Button>
+            ))}
+          </Row>
         }
+        flush
       >
-        <div className="mm__mode">
-          <Segmented<HuntMode>
-            block
-            size="sm"
-            value={chain.mode}
-            onChange={setMode}
-            options={[
-              { value: 'files', label: 'Folder of files', icon: Folder },
-              { value: 'site', label: 'Website', icon: Globe },
-            ]}
-          />
-          <p className="mm__hint">{chain.mode === 'files' ? 'Everything is files in one folder you hand out (or zip). Works offline.' : 'Every stage is a hidden page on the internet. You only hand out the START note; the pages live at addresses only the clues reveal, and any stage can live at a link of your own instead.'}</p>
+        <div className="mm__rows">
+          {chain.stages.length === 0 && (
+            <Empty icon={Puzzle} title="No puzzles yet">
+              Pick Easy, Medium or Hard above, or add puzzles one by one below.
+            </Empty>
+          )}
+          {chain.stages.map((s, i) => {
+            const Icon = ICONS[s.kind]
+            const isOpen = open === s.id
+            return (
+              <div key={s.id} className={cx('mm__row', isOpen && 'is-open', zipIndex >= 0 && i > zipIndex && 'is-inside')}>
+                <div className="mm__row-head" role="button" tabIndex={0} onClick={() => setOpen(isOpen ? null : s.id)} onKeyDown={(e) => e.key === 'Enter' && setOpen(isOpen ? null : s.id)}>
+                  {isOpen ? <ChevronDown size={14} className="mm__chev" /> : <ChevronRight size={14} className="mm__chev" />}
+                  <span className="mm__num">{i + 1}</span>
+                  <Icon size={15} />
+                  <span className="mm__row-title">{s.title || kindLabel(s.kind)}</span>
+                  <span className="mm__row-kind">
+                    {kindLabel(s.kind)}
+                    {linked(s) && ' · your own link'}
+                  </span>
+                  <span className="mm__row-tools" onClick={(e) => e.stopPropagation()}>
+                    <IconButton icon={ArrowUp} label="Move up" disabled={i === 0} onClick={() => move(s.id, -1)} />
+                    <IconButton icon={ArrowDown} label="Move down" disabled={i === chain.stages.length - 1} onClick={() => move(s.id, 1)} />
+                    <IconButton icon={Trash2} label="Remove" onClick={() => remove(s.id)} />
+                  </span>
+                </div>
+                {isOpen && <StageEditor chain={chain} stage={s} index={i} advanced={advanced} onChange={(p) => update(s.id, p)} />}
+              </div>
+            )
+          })}
+        </div>
+        <div className="mm__add">
+          {STAGE_KINDS.filter((k) => !k.siteOnly || chain.mode === 'site').map((k) => {
+            const Icon = ICONS[k.kind]
+            return (
+              <button key={k.kind} type="button" className="mm__add-btn" onClick={() => add(k.kind)} title={k.blurb}>
+                <Plus size={12} /> <Icon size={13} /> {k.label}
+              </button>
+            )
+          })}
+        </div>
+      </Panel>
+
+      <Panel title={<Step n={3}>{chain.mode === 'site' ? 'Put it online' : 'Make the folder'}</Step>} hint={chain.mode === 'site' ? 'The puzzles become hidden pages at addresses nobody can guess. You only give out the note.' : 'One folder with every puzzle locked behind the one before it.'}>
+        <Stack gap={12}>
+          {issues.length > 0 && (
+            <Notice tone="warn" title={issues.length === 1 ? 'One thing to fix' : `${issues.length} things to fix`}>
+              <ul className="mm__issues">
+                {issues.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </Notice>
+          )}
+          {chain.mode === 'files' ? (
+            busy ? (
+              <Progress value={null} label={busy} />
+            ) : (
+              <Button variant="primary" size="lg" icon={FolderOutput} disabled={!chain.stages.length} onClick={exportChain}>
+                Make the folder…
+              </Button>
+            )
+          ) : !connected ? (
+            <div className="mm__connect">
+              <div className="mm__connect-title">One-time setup: connect Netlify (free hosting)</div>
+              <ol className="mm__connect-steps">
+                <li>
+                  <Button size="sm" icon={ExternalLink} onClick={() => core.openExternal(TOKEN_PAGE)}>
+                    Open Netlify
+                  </Button>
+                  <span>log in or sign up, click <strong>New access token</strong>, copy it</span>
+                </li>
+                <li>
+                  <TextInput value={draft} onChange={setDraft} mono type="password" placeholder="paste the token here" autoComplete="off" />
+                  <Button size="sm" variant="primary" disabled={draft.trim().length < 20} onClick={() => { setToken(draft.trim()); setDraft('') }}>
+                    Connect
+                  </Button>
+                </li>
+              </ol>
+            </div>
+          ) : busy ? (
+            <Progress value={null} label={busy} />
+          ) : (
+            <Row gap={8} wrap>
+              <Button variant="primary" size="lg" icon={CloudUpload} disabled={!chain.stages.length} onClick={publish}>
+                {online ? 'Update it online' : 'Put it online'}
+              </Button>
+              {online && (
+                <Button variant="ghost" icon={Trash2} onClick={takeDown}>
+                  Take it down
+                </Button>
+              )}
+              <span className="mm__connected">
+                Netlify connected ·{' '}
+                <button type="button" className="mm__link" onClick={() => setToken('')}>
+                  disconnect
+                </button>
+              </span>
+            </Row>
+          )}
+          {online && (
+            <div className="mm__give">
+              <div className="mm__give-head">
+                <span>Give them this note. Nothing else.</span>
+                <CopyButton text={startNote(chain)} label="Copy the note" />
+              </div>
+              <pre className="mm__give-note">{startNote(chain).trim()}</pre>
+              <div className="mm__live">
+                <span className="mm__live-dot" />
+                <span className="mm__live-url">{chain.siteUrl}</span>
+                <IconButton icon={ExternalLink} label="Open the site" onClick={() => core.openExternal(chain.siteUrl)} />
+              </div>
+            </div>
+          )}
+        </Stack>
+      </Panel>
+
+      <details className="mm__more">
+        <summary>For you: how every puzzle is solved</summary>
+        <Walkthrough chain={chain} />
+      </details>
+
+      <details className="mm__more">
+        <summary>More options</summary>
+        <Stack gap={14}>
+          <Field label="Opening words of the note">
+            <TextArea value={chain.intro} onChange={(intro) => patch({ intro })} rows={2} mono={false} />
+          </Field>
+          <Field label="Words on the last page">
+            <TextArea value={chain.finale.message} onChange={(message) => patch({ finale: { ...chain.finale, message } })} rows={2} mono={false} />
+          </Field>
+          <Field label="Skip the last page, send them straight to the link" inline>
+            <Toggle checked={chain.finale.direct} onChange={(direct) => patch({ finale: { ...chain.finale, direct } })} disabled={!chain.finale.url.trim()} />
+          </Field>
+          <Field label="Where the hunt lives" hint={chain.mode === 'site' ? 'Online: hidden pages, nobody can skip ahead.' : 'A folder of files you hand out. Locked so nobody can skip ahead, but it is all in their hands.'}>
+            <Segmented<HuntMode>
+              size="sm"
+              value={chain.mode}
+              onChange={setMode}
+              options={[
+                { value: 'site', label: 'Online', icon: Globe },
+                { value: 'files', label: 'A folder of files', icon: Folder },
+              ]}
+            />
+          </Field>
           {chain.mode === 'files' && (
-            <Field label="Lock every stage behind the previous clue" inline hint="Each stage sits in a password zip; the password is only in the stage before it. Nobody can skip ahead.">
+            <Field label="Lock every puzzle behind the one before it" inline>
               <Toggle checked={chain.lockAll} onChange={(lockAll) => patch({ lockAll })} />
             </Field>
           )}
           {chain.mode === 'site' && (
-            <div className="mm__publish">
-              <Field label="Netlify token" hint={<>Free hosting; the token lets this app create and upload the site for you. <button type="button" className="mm__link" onClick={() => core.openExternal(TOKEN_PAGE)}>Get one <ExternalLink size={11} /></button></>}>
-                <TextInput value={token} onChange={setToken} mono type="password" placeholder="nfp_…" autoComplete="off" />
-              </Field>
-              {chain.siteUrl ? (
-                <div className="mm__live">
-                  <span className="mm__live-dot" />
-                  <span className="mm__live-url">{chain.siteUrl}</span>
-                  <IconButton icon={ExternalLink} label="Open the site" onClick={() => core.openExternal(chain.siteUrl)} />
-                </div>
-              ) : null}
-              {busy ? (
-                <Progress value={null} label={busy} />
-              ) : (
-                <Row gap={6}>
-                  <Button variant="primary" icon={CloudUpload} disabled={!chain.stages.length} onClick={publish}>
-                    {chain.siteId ? 'Publish again' : 'Publish to the internet'}
-                  </Button>
-                  {chain.siteId && (
-                    <Button variant="ghost" icon={Trash2} onClick={takeDown}>
-                      Take it down
-                    </Button>
-                  )}
-                </Row>
-              )}
-              <details className="mm__details">
-                <summary>Hosting it yourself instead</summary>
-                <Field label="Address the pages will live at" hint="Export writes a “site” folder; upload it anywhere static (GitHub Pages, Cloudflare Pages…). Every clue contains this address, so set it before exporting.">
-                  <TextInput value={chain.siteUrl} onChange={(siteUrl) => patch({ siteUrl, siteId: '' })} mono placeholder="https://something.netlify.app" />
-                </Field>
-              </details>
-            </div>
-          )}
-        </div>
-
-        <div className="mm__steps">
-          <button type="button" className={cx('mm__step', selected === 'start' && 'is-selected')} onClick={() => setSelected('start')}>
-            <span className="mm__num mm__num--start">
-              <FileText size={12} />
-            </span>
-            <span className="mm__step-text">
-              <span>START.txt</span>
-              <span>the one thing you hand out</span>
-            </span>
-          </button>
-          {chain.stages.map((s, i) => {
-            const Icon = ICONS[s.kind]
-            const inZip = zipIndex >= 0 && i > zipIndex
-            return (
-              <button key={s.id} type="button" className={cx('mm__step', s.id === selected && 'is-selected', inZip && 'is-inside')} onClick={() => setSelected(s.id)}>
-                <span className="mm__num">{i + 1}</span>
-                <Icon size={15} />
-                <span className="mm__step-text">
-                  <span>
-                    {s.title || kindLabel(s.kind)}
-                    {linked(s) && <Link2 size={11} className="mm__step-link" />}
-                  </span>
-                  <span>{needsWord(s) || lockedAt(chain, i) ? `${lockedAt(chain, i) && !needsWord(s) ? 'password' : wordLabel(s)}: ${s.word}` : s.kind === 'audio' ? `spells ${pointer(chain, i)}` : kindLabel(s.kind)}</span>
-                </span>
-              </button>
-            )
-          })}
-          <button type="button" className={cx('mm__step', selected === 'finale' && 'is-selected', zipIndex >= 0 && 'is-inside')} onClick={() => setSelected('finale')}>
-            <span className="mm__num mm__num--end">
-              <Flag size={12} />
-            </span>
-            <span className="mm__step-text">
-              <span>Finale</span>
-              <span>{chain.finale.direct ? 'straight to the link' : youtubeId(chain.finale.url) ? 'a page with the video' : chain.finale.url ? chain.finale.url : 'a last page'}</span>
-            </span>
-          </button>
-        </div>
-
-        {chain.stages.length === 0 && (
-          <div className="mm__add">
-            <div className="mm__add-label">Start from a template</div>
-            <Row gap={5}>
-              <Button size="sm" icon={Wand2} onClick={() => useTemplate('easy')}>Easy</Button>
-              <Button size="sm" icon={Wand2} onClick={() => useTemplate('medium')}>Medium</Button>
-              <Button size="sm" icon={Wand2} onClick={() => useTemplate('hard')}>Hard</Button>
+            <Row gap={8} wrap>
+              <Button icon={FolderOutput} disabled={!chain.stages.length || !!busy} onClick={exportChain}>
+                Export the files…
+              </Button>
+              <span className="mm__hint">The note, the pages (to host yourself) and anything for your own links.</span>
             </Row>
-          </div>
-        )}
-        <div className="mm__add">
-          <div className="mm__add-label">Add a stage</div>
-          <div className="mm__add-grid">
-            {STAGE_KINDS.filter((k) => !k.siteOnly || chain.mode === 'site').map((k) => {
-              const Icon = ICONS[k.kind]
-              return (
-                <button key={k.kind} type="button" className="mm__add-btn" onClick={() => add(k.kind)} title={k.blurb}>
-                  <Plus size={12} /> <Icon size={13} /> {k.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-        <div className="mm__export">
-          {busy ? (
-            chain.mode === 'files' && <Progress value={null} label={busy} />
-          ) : (
-            <Button variant={chain.mode === 'files' ? 'primary' : 'secondary'} size={chain.mode === 'files' ? 'lg' : 'md'} block icon={FolderOutput} disabled={!chain.stages.length || !!busy} onClick={exportChain}>
-              {chain.mode === 'files' ? 'Export the hunt…' : 'Export the files too…'}
+          )}
+          {chain.mode === 'site' && (
+            <Field label="Hosting it yourself instead? The address the pages will live at" hint="Filled in for you when you put it online.">
+              <TextInput value={chain.siteUrl} onChange={(siteUrl) => patch({ siteUrl, siteId: '' })} mono placeholder="https://something.netlify.app" />
+            </Field>
+          )}
+          <Field label="Advanced controls" inline hint="Passwords and keywords, page addresses, cipher choice, hints, and putting a puzzle at a link of your own (a video description, a pastebin…).">
+            <Toggle checked={advanced} onChange={setAdvanced} />
+          </Field>
+          {chain.stages.length > 0 && (
+            <Button variant="ghost" icon={Trash2} onClick={() => { setChain((c) => ({ ...emptyChain(), name: c.name, mode: c.mode, siteUrl: c.siteUrl, siteId: c.siteId })); setOpen(null) }}>
+              Remove every puzzle
             </Button>
           )}
-        </div>
-      </Panel>
-
-      <Stack gap={16}>
-        {issues.length > 0 && (
-          <Notice tone="warn" title={issues.length === 1 ? 'One thing to fix' : `${issues.length} things to fix`}>
-            <ul className="mm__issues">
-              {issues.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ul>
-          </Notice>
-        )}
-        {selected === 'start' ? (
-          <StartEditor chain={chain} onChange={patch} />
-        ) : selected === 'finale' ? (
-          <FinaleEditor chain={chain} onChange={patch} />
-        ) : current ? (
-          <StageEditor chain={chain} stage={current} index={chain.stages.indexOf(current)} onChange={(p) => update(current.id, p)} onMove={(d) => move(current.id, d)} onRemove={() => remove(current.id)} />
-        ) : null}
-        <Walkthrough chain={chain} />
-      </Stack>
+        </Stack>
+      </details>
     </div>
   )
 }
 
-function StartEditor({ chain, onChange }: { chain: Chain; onChange: (p: Partial<Chain>) => void }) {
-  const note = startNote(chain)
+function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
-    <Panel title="START.txt" hint="The only thing the player gets. It leads to stage 1; stage 1 leads to stage 2; and so on to the finale." actions={<CopyButton text={note} />}>
-      <Stack gap={14}>
-        <Field label="Opening words" hint="Set the mood. The pointer to the first stage is added underneath automatically.">
-          <TextArea value={chain.intro} onChange={(intro) => onChange({ intro })} rows={3} mono={false} placeholder="Someone left this behind on purpose…" />
-        </Field>
-        <Field label="What the note will say">
-          <TextArea value={note.trim()} readOnly rows={4} />
-        </Field>
-        {chain.stages.length === 0 && (
-          <Empty icon={Puzzle} title="No stages yet">
-            Pick a template on the left, or add stages one by one. Each stage hides the way to the next one; you never write the “go to…” parts yourself.
-          </Empty>
-        )}
-      </Stack>
-    </Panel>
-  )
-}
-
-function FinaleEditor({ chain, onChange }: { chain: Chain; onChange: (p: Partial<Chain>) => void }) {
-  const f = chain.finale
-  const set = (p: Partial<Chain['finale']>) => onChange({ finale: { ...f, ...p } })
-  const lastIsAudio = chain.stages.length > 0 && chain.stages[chain.stages.length - 1].kind === 'audio'
-  return (
-    <Panel title="Finale" hint={`Where the last stage sends them: ${whereIs(chain, chain.stages.length)}`}>
-      <Stack gap={14}>
-        <Field label="Final words">
-          <TextArea value={f.message} onChange={(message) => set({ message })} rows={3} mono={false} />
-        </Field>
-        <Field label="Video or link" hint="An unlisted YouTube video is perfect: anyone with the link can watch, nobody can find it by searching. (A private video would block them.)">
-          <TextInput value={f.url} onChange={(url) => set({ url })} mono placeholder="https://www.youtube.com/watch?v=…" />
-        </Field>
-        <Field label="Send them straight to the link" inline hint={f.direct ? 'The last clue is the link itself; no finale page.' : youtubeId(f.url) ? 'Off: a finale page shows your final words with the video playing inside it.' : 'Off: a finale page shows your final words and the link.'}>
-          <Toggle checked={f.direct} onChange={(direct) => set({ direct })} disabled={!f.url.trim()} />
-        </Field>
-        {lastIsAudio && (
-          <Field label="The word the last recording spells" hint="Because the last stage is a sound, the finale is found by this word.">
-            <WordInput value={f.word} onChange={(word) => set({ word })} />
-          </Field>
-        )}
-      </Stack>
-    </Panel>
+    <span className="mm__stepno">
+      <span className="mm__num">{n}</span>
+      {children}
+    </span>
   )
 }
 
@@ -463,9 +470,8 @@ function WordInput({ value, onChange, placeholder }: { value: string; onChange: 
   )
 }
 
-function StageEditor({ chain, stage, index, onChange, onMove, onRemove }: { chain: Chain; stage: Stage; index: number; onChange: (p: Partial<Stage>) => void; onMove: (dir: -1 | 1) => void; onRemove: () => void }) {
+function StageEditor({ chain, stage, index, advanced, onChange }: { chain: Chain; stage: Stage; index: number; advanced: boolean; onChange: (p: Partial<Stage>) => void }) {
   const kind = STAGE_KINDS.find((k) => k.kind === stage.kind)!
-  const Icon = ICONS[stage.kind]
   const next = chain.stages[index + 1] as Stage | undefined
   const afterAudio = index > 0 && chain.stages[index - 1].kind === 'audio'
   const hidden = messageOf(chain, index)
@@ -473,116 +479,99 @@ function StageEditor({ chain, stage, index, onChange, onMove, onRemove }: { chai
   const own = linked(stage)
   const locked = lockedAt(chain, index)
   return (
-    <Panel
-      title={
-        <span className="mm__editor-title">
-          <Icon size={16} /> Stage {index + 1} · {kind.label}
-        </span>
-      }
-      hint={kind.blurb}
-      actions={
-        <Row gap={2}>
-          <IconButton icon={ArrowUp} label="Move up" disabled={index === 0} onClick={() => onMove(-1)} />
-          <IconButton icon={ArrowDown} label="Move down" disabled={index === chain.stages.length - 1} onClick={() => onMove(1)} />
-          <IconButton icon={Trash2} label="Remove stage" onClick={onRemove} />
-        </Row>
-      }
-    >
-      <Stack gap={14}>
-        <Row gap={12} wrap>
-          <Field label="Title" hint={chain.mode === 'site' ? 'Shown on the page' : 'Becomes the file name'}>
-            <TextInput value={stage.title} onChange={(title) => onChange({ title })} placeholder={kind.label} />
+    <div className="mm__row-editor">
+      <p className="mm__hint">{kind.blurb}</p>
+      <Row gap={12} wrap>
+        <Field label="Title">
+          <TextInput value={stage.title} onChange={(title) => onChange({ title })} placeholder={kind.label} />
+        </Field>
+        {advanced && (needsWord(stage) || locked) && (
+          <Field label={stage.kind === 'cipher' && needsWord(stage) ? (locked ? 'Keyword and zip password' : 'Keyword') : 'Password'} hint={index === 0 ? 'the note tells the player this' : afterAudio ? 'the sound before spells this' : `puzzle ${index} tells the player this`}>
+            <WordInput value={stage.word} onChange={(word) => onChange({ word })} />
           </Field>
-          {(needsWord(stage) || locked) && (
-            <Field label={stage.kind === 'cipher' && needsWord(stage) ? (locked ? 'Keyword and zip password' : 'Keyword') : 'Password'} hint={index === 0 ? 'START.txt tells the player this' : afterAudio ? 'The recording before spells this' : `Stage ${index} tells the player this`}>
-              <WordInput value={stage.word} onChange={(word) => onChange({ word })} />
+        )}
+      </Row>
+      {!isAudio && (
+        <Field label="A line of story (optional)" hint="What they read once they crack it; the way to the next puzzle is added underneath by itself.">
+          <TextArea value={stage.story} onChange={(story) => onChange({ story })} rows={2} mono={false} placeholder={stage.kind === 'cipher' && stage.cipher === 'invisible' ? 'The innocent sentence the secret hides inside' : 'One or two lines…'} />
+        </Field>
+      )}
+      {stage.kind === 'image' && (
+        <Field label="Your own photo (optional)" hint="Leave empty and a grainy night-camera frame is made for you. The output is always a PNG.">
+          {stage.coverPath ? <PathChip path={stage.coverPath} icon={ImageIcon} onClear={() => onChange({ coverPath: null })} /> : <Dropzone compact title="Drop a picture" hint="or browse" icon={ImageIcon} filters={[{ name: 'Picture', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]} strict onPaths={(p) => onChange({ coverPath: p[0] })} />}
+        </Field>
+      )}
+      {isAudio && (
+        <Notice tone="info" icon={AudioLines}>
+          {next ? (
+            <>
+              The sound spells <strong>{pointer(chain, index)}</strong>: {needsWord(next) || lockedAt(chain, index + 1) ? `the password of puzzle ${index + 2}` : chain.mode === 'site' ? `puzzle ${index + 2} lives at /${pointer(chain, index).toLowerCase()}/` : `puzzle ${index + 2} is the file called ${whereIs(chain, index + 1)}`}.
+            </>
+          ) : (
+            <>The sound spells <strong>{pointer(chain, index)}</strong>, which leads to the ending.</>
+          )}
+        </Notice>
+      )}
+
+      {advanced && (
+        <Stack gap={12}>
+          {stage.kind === 'cipher' && (
+            <Field label="Cipher" hint={CIPHERS.find((c) => c.value === stage.cipher)!.blurb}>
+              <Select<CipherPreset> value={stage.cipher} onChange={(cipher) => onChange({ cipher })} options={CIPHERS.map((c) => ({ value: c.value, label: c.label }))} />
             </Field>
           )}
-        </Row>
-        {stage.kind !== 'gate' && (
-          <Field label="Where it lives">
-            <Segmented<Where>
-              block
-              size="sm"
-              value={stage.where}
-              onChange={(where) => onChange({ where })}
-              options={[
-                { value: 'auto', label: chain.mode === 'site' ? 'On the hunt site (published for you)' : 'In the folder', icon: chain.mode === 'site' ? Globe : Folder },
-                { value: 'link', label: 'At a link of my own', icon: Link2 },
-              ]}
-            />
-          </Field>
-        )}
-        {own ? (
-          <Stack gap={8}>
-            <Field label="The link" hint="Make the place first (an unlisted video, a pastebin, a Google Doc, a Discord message, an image host…), paste its link here, then put the clue there.">
-              <TextInput value={stage.link} onChange={(link) => onChange({ link })} mono placeholder="https://…" />
+          {stage.kind === 'image' && (
+            <Field label="Where to hide it in the picture">
+              <Segmented<'lsb' | 'text' | 'both'> block size="sm" value={stage.imageMethod} onChange={(imageMethod) => onChange({ imageMethod })} options={[{ value: 'lsb', label: 'In the pixels (hard)' }, { value: 'text', label: 'In the metadata (easy)' }, { value: 'both', label: 'Both' }]} />
             </Field>
-            <Notice tone="info" icon={Link2}>
-              {index === 0 ? 'START.txt' : `Stage ${index}`} will send the player to this link. You put the clue there yourself: {placementOf(chain, index)}.{stage.kind === 'cipher' ? ' The text to paste is below.' : ' Export writes the file into an “elsewhere” folder.'}
-            </Notice>
-          </Stack>
-        ) : (
-          chain.mode === 'site' &&
-          !afterAudio && (
-            <Field label="Address part" hint={`${chain.siteUrl.replace(/\/+$/, '') || '<your site>'}/${stage.slug}/ — random, so nobody can guess their way to it`}>
-              <Row gap={6}>
-                <TextInput value={stage.slug} onChange={(slug) => onChange({ slug: slug.replace(/[^a-z0-9-]/gi, '').toLowerCase() })} mono />
-                <IconButton icon={Shuffle} label="New random address" onClick={() => onChange({ slug: randomSlug() })} />
-              </Row>
+          )}
+          {stage.kind === 'folder' && (
+            <Field label="Junk files" hint="The real note is in the deepest folder.">
+              <NumberInput value={stage.decoys} onChange={(decoys) => onChange({ decoys })} min={5} max={400} width={100} />
             </Field>
-          )
-        )}
-
-        {!isAudio && (
-          <Field label="Story line" hint="What they read once they crack it. The “go to…” part is added underneath by itself.">
-            <TextArea value={stage.story} onChange={(story) => onChange({ story })} rows={2} mono={false} placeholder={stage.kind === 'cipher' && stage.cipher === 'invisible' ? 'The innocent sentence the secret hides inside' : 'One or two lines…'} />
+          )}
+          {stage.kind !== 'gate' && (
+            <Field label="Where it lives">
+              <Segmented<Where> block size="sm" value={stage.where} onChange={(where) => onChange({ where })} options={[{ value: 'auto', label: chain.mode === 'site' ? 'On the hunt site' : 'In the folder', icon: chain.mode === 'site' ? Globe : Folder }, { value: 'link', label: 'At a link of my own', icon: Link2 }]} />
+            </Field>
+          )}
+          {own ? (
+            <Stack gap={8}>
+              <Field label="The link" hint="Make the place first (an unlisted video, a pastebin, a Google Doc, a Discord message, an image host…), paste its link here, then put the clue there.">
+                <TextInput value={stage.link} onChange={(link) => onChange({ link })} mono placeholder="https://…" />
+              </Field>
+              <Notice tone="info" icon={Link2}>
+                {index === 0 ? 'The note' : `Puzzle ${index}`} will send the player to this link. You put the clue there yourself: {placementOf(chain, index)}.{stage.kind === 'cipher' ? ' The text to paste is below.' : ' “Export the files” writes it into an “elsewhere” folder.'}
+              </Notice>
+            </Stack>
+          ) : (
+            chain.mode === 'site' &&
+            !afterAudio && (
+              <Field label="Page address" hint={`${chain.siteUrl.replace(/\/+$/, '') || '<your site>'}/${stage.slug}/ — random, so nobody can guess their way to it`}>
+                <Row gap={6}>
+                  <TextInput value={stage.slug} onChange={(slug) => onChange({ slug: slug.replace(/[^a-z0-9-]/gi, '').toLowerCase() })} mono />
+                  <IconButton icon={Shuffle} label="New random address" onClick={() => onChange({ slug: randomSlug() })} />
+                </Row>
+              </Field>
+            )
+          )}
+          <Field label="Leave a small hint" inline hint={stage.kind === 'cipher' ? 'a bracketed nudge under the cipher text' : 'a faint line on the page'}>
+            <Toggle checked={stage.hint} onChange={(hint) => onChange({ hint })} />
           </Field>
-        )}
-
-        {stage.kind === 'cipher' && (
-          <Field label="Cipher" hint={CIPHERS.find((c) => c.value === stage.cipher)!.blurb}>
-            <Select<CipherPreset> value={stage.cipher} onChange={(cipher) => onChange({ cipher })} options={CIPHERS.map((c) => ({ value: c.value, label: c.label }))} />
-          </Field>
-        )}
-        {stage.kind === 'image' && <ImageEditor stage={stage} onChange={onChange} />}
-        {stage.kind === 'folder' && (
-          <Field label="Junk files" hint="The real note is in the deepest folder.">
-            <NumberInput value={stage.decoys} onChange={(decoys) => onChange({ decoys })} min={5} max={400} width={100} />
-          </Field>
-        )}
-        {isAudio && (
-          <Notice tone="info" icon={AudioLines}>
-            {next ? (
-              <>
-                The recording spells <strong>{pointer(chain, index)}</strong>: {needsWord(next) ? `the ${wordLabel(next)} of stage ${index + 2}` : chain.mode === 'site' ? `stage ${index + 2} lives at /${pointer(chain, index).toLowerCase()}/` : `stage ${index + 2} is the file called ${whereIs(chain, index + 1)}`}. Change the word on that stage.
-              </>
-            ) : (
-              <>The recording spells <strong>{pointer(chain, index)}</strong>, which leads to the finale. Change the word on the finale.</>
-            )}
-          </Notice>
-        )}
-        {stage.kind === 'gate' && (
-          <Notice tone="info" icon={DoorClosed}>
-            The page asks for the password and decrypts the next link in the browser, so nobody can read it in the page source.
-          </Notice>
-        )}
-
-        <Field label="Leave a small hint" inline hint={stage.kind === 'cipher' ? 'A bracketed nudge under the cipher text' : 'A faint line on the page (website hunts)'}>
-          <Toggle checked={stage.hint} onChange={(hint) => onChange({ hint })} />
-        </Field>
-
-        <div className="mm__reveal">
-          <div className="mm__label">{isAudio ? 'What the spectrogram shows' : 'What this stage hides'}</div>
-          {isAudio ? <AudioPreview text={hidden} /> : stage.kind === 'qr' ? <QrPreview text={hidden} /> : stage.kind === 'cipher' ? <CipherPreview stage={stage} message={hidden} /> : null}
-          {!isAudio && <TextArea value={hidden} readOnly rows={Math.min(6, hidden.split('\n').length + 1)} />}
-          <p className="mm__hint">
-            <strong>How they get it:</strong> {locked ? `extract "${whereIs(chain, index)}" with the password "${stage.word}", then ` : ''}
-            {howSolved(stage)}
-          </p>
-        </div>
-      </Stack>
-    </Panel>
+          <div className="mm__reveal">
+            <div className="mm__label">{isAudio ? 'What the spectrogram shows' : 'What this puzzle hides'}</div>
+            {isAudio ? <AudioPreview text={hidden} /> : stage.kind === 'qr' ? <QrPreview text={hidden} /> : stage.kind === 'cipher' ? <CipherPreview stage={stage} message={hidden} /> : null}
+            {!isAudio && <TextArea value={hidden} readOnly rows={Math.min(6, hidden.split('\n').length + 1)} />}
+            <p className="mm__hint">
+              <strong>How they get it:</strong> {locked ? `extract "${whereIs(chain, index)}" with the password "${stage.word}", then ` : ''}
+              {howSolved(stage)}
+            </p>
+          </div>
+        </Stack>
+      )}
+      {!advanced && own && stage.kind === 'cipher' && <CipherPreview stage={stage} message={hidden} />}
+      {!advanced && isAudio && <AudioPreview text={hidden} />}
+    </div>
   )
 }
 
@@ -614,33 +603,6 @@ function QrPreview({ text }: { text: string }) {
   return <canvas ref={ref} className="mm__qr" />
 }
 
-function ImageEditor({ stage, onChange }: { stage: Stage; onChange: (p: Partial<Stage>) => void }) {
-  return (
-    <Stack gap={12}>
-      <Field label="Cover picture" hint="Any photo. Leave empty and a moody generated frame is used. The output is always a PNG (JPEG would destroy the hidden bits).">
-        {stage.coverPath ? (
-          <PathChip path={stage.coverPath} icon={ImageIcon} onClear={() => onChange({ coverPath: null })} />
-        ) : (
-          <Dropzone compact title="Drop a picture" hint="or browse" icon={ImageIcon} filters={[{ name: 'Picture', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]} strict onPaths={(p) => onChange({ coverPath: p[0] })} />
-        )}
-      </Field>
-      <Field label="Where to hide it">
-        <Segmented<'lsb' | 'text' | 'both'>
-          block
-          size="sm"
-          value={stage.imageMethod}
-          onChange={(imageMethod) => onChange({ imageMethod })}
-          options={[
-            { value: 'lsb', label: 'In the pixels (hard)' },
-            { value: 'text', label: 'In the metadata (easy)' },
-            { value: 'both', label: 'Both' },
-          ]}
-        />
-      </Field>
-    </Stack>
-  )
-}
-
 function AudioPreview({ text }: { text: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [seconds, setSeconds] = useState(0)
@@ -664,7 +626,7 @@ function AudioPreview({ text }: { text: string }) {
     void a.play()
   }
   return (
-    <Field label={`In Audacity’s spectrogram view${seconds ? ` (${seconds.toFixed(1)} s)` : ''}`} hint="To the ear it is just eerie tones.">
+    <Field label={`How it looks in Audacity’s spectrogram view${seconds ? ` (${seconds.toFixed(1)} s)` : ''}`} hint="To the ear it is just eerie tones.">
       <div className="mm__spectro">
         <canvas ref={canvasRef} />
         <Button size="sm" variant="ghost" icon={AudioLines} onClick={play} disabled={!wav}>
@@ -678,20 +640,18 @@ function AudioPreview({ text }: { text: string }) {
 function Walkthrough({ chain }: { chain: Chain }) {
   const hops = useMemo(() => storyboard(chain), [chain])
   return (
-    <Panel title="Walkthrough" hint="The whole hunt, in the order the player meets it. This is also what the SOLUTION.txt says." actions={<ListOrdered size={16} />}>
-      <ol className="mm__hops">
-        {hops.map((h, i) => (
-          <li key={i} className="mm__hop">
-            <div className="mm__hop-at">{h.at}</div>
-            <pre className="mm__hop-says">{h.says}</pre>
-            <div className="mm__hop-how">
-              {h.how}
-              {h.key && <Badge tone="accent">{h.key}</Badge>}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </Panel>
+    <ol className="mm__hops">
+      {hops.map((h, i) => (
+        <li key={i} className="mm__hop">
+          <div className="mm__hop-at">{h.at}</div>
+          <pre className="mm__hop-says">{h.says}</pre>
+          <div className="mm__hop-how">
+            {h.how}
+            {h.key && <Badge tone="accent">{h.key}</Badge>}
+          </div>
+        </li>
+      ))}
+    </ol>
   )
 }
 
