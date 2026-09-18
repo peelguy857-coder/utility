@@ -10,10 +10,11 @@ folder and it appears in the sidebar, the home grid and the `Ctrl K` palette. Wi
 | | **Icon Forge** | One picture → `.ico`, `.icns`, PNG set, favicons, Electron and Tauri icon folders. | Working |
 | Phone | **Phone Drop** | Files, photos and text between PC and phone over Wi-Fi: scan a QR code, done. | Working |
 | | **QR Maker** | Links, text and Wi-Fi logins as PNG/SVG QR codes. | Working |
-| | **Phone Mirror** | iPhone screen in a window via AirPlay (receiver written in JS). | In progress, not in the repo yet |
-| Images & colour | **Image Lab** | Resize, convert, squeeze — presets for YouTube, Steam and Discord. | Built, needs a polish pass |
+| | **Phone Mirror** | iPhone screen in a window via AirPlay (receiver written in JS), with sound, volume and MP4 recording. | Works with a real iPhone; engine not in the repo yet (licence decision pending) |
+| Images & colour | **Thumbnail Tester** | Your YouTube thumbnail in the home feed, search, sidebar and on a phone, next to other videos — plus size/ratio/2 MB checks. | Working |
+| | **Image Lab** | Resize, convert, squeeze — presets for YouTube, Steam and Discord. | Built, needs a polish pass |
 | Developer | **Port Doctor** | What is listening on which port, and end the process that is hogging it. | Working |
-| | **File Hash** | Checksums for any file and a one-paste download check. | Engine done, screen in progress |
+| | **File Hash** | Checksums for any file and a one-paste download check. | Working |
 
 Planned next: Color Studio (eyedropper, palettes, contrast) and Text Tools (JSON, Base64, UUIDs, timestamps).
 

@@ -1,0 +1,304 @@
+.tt-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------------------ the fake YouTube */
+
+.yt {
+  --yt-bg: #0f0f0f;
+  --yt-text: #f1f1f1;
+  --yt-dim: #aaaaaa;
+  --yt-line: #272727;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--yt-bg);
+  color: var(--yt-text);
+  font-family: Roboto, 'Segoe UI', Arial, sans-serif;
+  overflow: hidden;
+}
+.yt--light {
+  --yt-bg: #ffffff;
+  --yt-text: #0f0f0f;
+  --yt-dim: #606060;
+  --yt-line: #e5e5e5;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.yt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 22px 16px;
+}
+.yt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 900px;
+}
+.yt-side {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 300px;
+  gap: 20px;
+}
+.yt-player {
+  aspect-ratio: 16 / 9;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #000;
+  color: #666;
+  font-size: 13px;
+}
+.yt-side__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.yt-phone {
+  width: 380px;
+  max-width: 100%;
+  margin: 0 auto;
+  border-radius: 28px;
+  border: 8px solid #222;
+  background: var(--yt-bg);
+  overflow: hidden;
+}
+.yt-phone__bar {
+  height: 22px;
+}
+
+.yt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.yt-card--row {
+  flex-direction: row;
+  gap: 16px;
+}
+.yt-card--row .yt-thumb {
+  width: 360px;
+  flex: none;
+}
+.yt-card--mini {
+  flex-direction: row;
+  gap: 8px;
+}
+.yt-card--mini .yt-thumb {
+  width: 168px;
+  flex: none;
+  border-radius: 8px;
+}
+.yt-card--mini .yt-title {
+  font-size: 13.5px;
+  -webkit-line-clamp: 2;
+}
+.yt-card--phone {
+  gap: 10px;
+  padding-bottom: 14px;
+}
+.yt-card--phone .yt-thumb {
+  border-radius: 0;
+}
+.yt-card--phone .yt-text {
+  padding: 0 12px;
+}
+
+.yt-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #222;
+}
+.yt-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.yt-thumb--filler {
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, oklch(0.45 0.08 var(--fh, 220)), oklch(0.25 0.06 var(--fh, 220)));
+  color: rgb(255 255 255 / 0.35);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.yt-thumb--empty {
+  background: repeating-linear-gradient(45deg, #2a2a2a 0 10px, #222 10px 20px);
+  color: rgb(255 255 255 / 0.55);
+  outline: 2px dashed rgb(255 255 255 / 0.35);
+  outline-offset: -2px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.yt-dur {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.8);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+}
+.yt-safe {
+  position: absolute;
+  inset: 0;
+  border: 1px dashed rgb(255 255 255 / 0.6);
+  box-shadow: inset 0 0 0 5% rgb(0 0 0 / 0.35);
+  pointer-events: none;
+}
+.yt-safe::after {
+  content: 'length badge sits here';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 22%;
+  height: 16%;
+  border: 1px solid #ff4d4f;
+  border-radius: 4px;
+  color: #ff4d4f;
+  font-size: 9px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  background: rgb(255 77 79 / 0.15);
+}
+.yt-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: linear-gradient(to right, #f00 40%, rgb(255 255 255 / 0.35) 40%);
+}
+
+.yt-text {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+.yt-avatar {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: oklch(0.55 0.15 var(--fh, 5));
+  color: #fff;
+  font-weight: 600;
+}
+.yt-card--row .yt-avatar {
+  display: none;
+}
+.yt-lines {
+  min-width: 0;
+}
+.yt-title {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.yt-card--row .yt-title {
+  font-size: 18px;
+  font-weight: 400;
+}
+.yt-meta {
+  font-size: 12.5px;
+  color: var(--yt-dim);
+  line-height: 1.4;
+}
+
+/* ------------------------------------------------------------ side panel bits */
+
+.tt-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+.tt-item img {
+  width: 64px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 5px;
+}
+.tt-item__text {
+  flex: 1;
+  min-width: 0;
+}
+.tt-item__name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tt-item__meta {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.tt-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tt-checks__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.tt-check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.tt-check svg {
+  flex: none;
+  margin-top: 2px;
+}
+.tt-check.is-ok svg {
+  color: var(--ok);
+}
+.tt-check.is-bad {
+  color: var(--text);
+}
+.tt-check.is-bad svg {
+  color: var(--warn);
+}
+
+.tt-small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.tt-small__item {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+.tt-small__item img {
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 4px;
+}
